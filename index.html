@@ -21,7 +21,17 @@
 <div id="hud">
   <div class="top-bar">
     <button id="restart" class="icon-btn" title="다시 시작">↻</button>
-    <div id="level-label">Level 1</div>
+    <div class="center-badge">
+      <div id="level-label">Level 1</div>
+      <div id="screw-count">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="8"/>
+          <line x1="7" y1="12" x2="17" y2="12"/>
+          <line x1="12" y1="7" x2="12" y2="17"/>
+        </svg>
+        <span id="screw-count-text">0 / 0</span>
+      </div>
+    </div>
     <button id="next" class="icon-btn" title="다음 레벨" disabled>›</button>
   </div>
   <div id="hint">화면을 드래그하면 회전 · 나사를 탭하면 풀어요</div>

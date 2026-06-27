@@ -304,15 +304,35 @@ export class Decoration {
 
 // ---------- Slot Tray ----------
 export class SlotTray {
-  constructor() {
-    this.slotCount = 3;
+  constructor(slotCount = 3) {
+    this.slotCount = slotCount;
     this.maxPerSlot = 3;
-    this.slots = [null, null, null];
+    this.slots = new Array(slotCount).fill(null);
+    this.spacing = 0.85;
     this.group = new THREE.Group();
     this._build();
   }
 
+  setSlotCount(n) {
+    if (n === this.slotCount) {
+      this.reset();
+      return;
+    }
+    this.slotCount = n;
+    this.slots = new Array(n).fill(null);
+    // Clear old visuals
+    while (this.group.children.length) {
+      const c = this.group.children[0];
+      this.group.remove(c);
+    }
+    this._build();
+  }
+
   _build() {
+    const n = this.slotCount;
+    const spacing = this.spacing;
+    const trayWidth = Math.max(2.4, n * spacing + 0.55);
+
     const trayMat = makeToonMat(0xf8efdc);
     const rimMat  = makeToonMat(0xd5a866);
     const holderMat = new THREE.MeshToonMaterial({
@@ -322,31 +342,33 @@ export class SlotTray {
       opacity: 0.55,
     });
 
-    const tray = new THREE.Mesh(new THREE.BoxGeometry(2.85, 0.18, 0.95), trayMat);
+    const tray = new THREE.Mesh(new THREE.BoxGeometry(trayWidth, 0.18, 0.95), trayMat);
     this.group.add(tray);
     withOutline(tray, 1.025);
 
-    const rimGeo = new THREE.BoxGeometry(2.85, 0.07, 0.07);
+    const rimGeo = new THREE.BoxGeometry(trayWidth, 0.07, 0.07);
     for (const z of [0.46, -0.46]) {
       const r = new THREE.Mesh(rimGeo, rimMat);
       r.position.set(0, 0.12, z);
       this.group.add(r);
     }
 
+    const startX = -((n - 1) * spacing) / 2;
     this.holders = [];
-    for (let i = 0; i < this.slotCount; i++) {
+    for (let i = 0; i < n; i++) {
+      const x = startX + i * spacing;
       const holder = new THREE.Mesh(
         new THREE.CylinderGeometry(0.24, 0.24, 0.62, 30, 1, true),
         holderMat
       );
-      holder.position.set(-0.9 + i * 0.9, 0.42, 0);
+      holder.position.set(x, 0.42, 0);
       this.group.add(holder);
 
       const disc = new THREE.Mesh(
         new THREE.CylinderGeometry(0.26, 0.26, 0.05, 30),
         rimMat
       );
-      disc.position.set(-0.9 + i * 0.9, 0.12, 0);
+      disc.position.set(x, 0.12, 0);
       this.group.add(disc);
       withOutline(disc, 1.04);
 
@@ -355,7 +377,8 @@ export class SlotTray {
   }
 
   getSlotLocalPos(i, stack = 0) {
-    return new THREE.Vector3(-0.9 + i * 0.9, 0.23 + stack * 0.22, 0);
+    const startX = -((this.slotCount - 1) * this.spacing) / 2;
+    return new THREE.Vector3(startX + i * this.spacing, 0.23 + stack * 0.22, 0);
   }
   getSlotWorldPos(i, stack = 0) {
     this.group.updateMatrixWorld(true);
@@ -389,5 +412,5 @@ export class SlotTray {
     return null;
   }
   isAllOccupied() { return this.slots.every(s => s !== null); }
-  reset() { this.slots = [null, null, null]; }
+  reset() { this.slots = new Array(this.slotCount).fill(null); }
 }

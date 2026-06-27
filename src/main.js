@@ -167,6 +167,7 @@ window.addEventListener('resize', () => {
 
 // ---------- HUD ----------
 const levelLabel = document.getElementById('level-label');
+const screwCountText = document.getElementById('screw-count-text');
 const restartBtn = document.getElementById('restart');
 const nextBtn = document.getElementById('next');
 const overlay = document.getElementById('overlay');
@@ -195,8 +196,13 @@ startBtn.addEventListener('click', () => {
   splash.classList.add('hidden');
 });
 
+game.onCountChange = (remaining, total) => {
+  screwCountText.textContent = `${remaining} / ${total}`;
+};
+
 game.onStateChange = (state) => {
   levelLabel.textContent = `Level ${game.levelIdx + 1}`;
+  screwCountText.textContent = `${game.attachedScrews().length} / ${game.totalScrews}`;
   if (state === 'won') {
     overlayEmoji.textContent = '🎉';
     overlayTitle.textContent = '집을 분해했어요!';

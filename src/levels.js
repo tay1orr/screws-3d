@@ -101,80 +101,89 @@ const roofScrews = (c1, c2, c3) => [
 ];
 
 // ---------- LEVELS ----------
+// Each level: { slots: N, pieces: [...] }
+// Slot count varies per level to keep difficulty interesting.
 export const LEVELS = [
 
-  // ============ LEVEL 1: 작은 집 (18 screws, 3 colors) ============
-  // 4 walls + 2 roof panels. No blocking. Each color = 6 total.
-  [
-    P(foundation()),  // no screws on foundation
-    P(frontWall(),  frontScrews ('red',   'green', 'blue')),
-    P(backWall(),   backScrews  ('red',   'green', 'blue')),
-    P(leftWall(),   leftScrews  ('red',   'green', 'blue')),
-    P(rightWall(),  rightScrews ('red',   'green', 'blue')),
-    P(roofA(),      roofScrews  ('red',   'green', 'blue')),
-    P(roofB(),      roofScrews  ('red',   'green', 'blue')),
-  ],
+  // ============ LEVEL 1: 작은 집 (18 screws, 3 colors, 슬롯 4개) ============
+  // Easy intro. With 4 slots and only 3 colors, you literally cannot lose.
+  {
+    slots: 4,
+    pieces: [
+      P(foundation()),
+      P(frontWall(),  frontScrews ('red',   'green', 'blue')),
+      P(backWall(),   backScrews  ('red',   'green', 'blue')),
+      P(leftWall(),   leftScrews  ('red',   'green', 'blue')),
+      P(rightWall(),  rightScrews ('red',   'green', 'blue')),
+      P(roofA(),      roofScrews  ('red',   'green', 'blue')),
+      P(roofB(),      roofScrews  ('red',   'green', 'blue')),
+    ],
+  },
 
-  // ============ LEVEL 2: 굴뚝 있는 집 (21 screws, 4 colors) ============
-  // Chimney introduces a 4th color (yellow x3) — only 3 slots, so player
-  // must clear at least one color before tackling the 4th.
+  // ============ LEVEL 2: 굴뚝 있는 집 (21 screws, 4 colors, 슬롯 3개) ============
+  // 4 colors + 3 slots → real strategy required.
   // Counts: r=6, g=6, b=6, y=3
-  [
-    P(foundation()),
-    P(frontWall(),  frontScrews ('red',   'green', 'blue')),
-    P(backWall(),   backScrews  ('blue',  'red',   'green')),
-    P(leftWall(),   leftScrews  ('green', 'blue',  'red')),
-    P(rightWall(),  rightScrews ('red',   'green', 'blue')),
-    P(roofA(),      roofScrews  ('green', 'blue',  'red')),
-    P(roofB(),      roofScrews  ('blue',  'red',   'green')),
-    // Chimney — small box on top of roof A
-    P({
-      size: [0.45, 0.95, 0.45],
-      pos:  [0.85, ROOF_PEAK_Y - 0.05, 0.55],
-      rot:  [0, 0, 0],
-      color: HOUSE.chimney,
-      topColor: HOUSE.chimney,
-    }, [
-      s('yellow', [-0.10, 0.95/2 + 0.01,  0.10]),
-      s('yellow', [ 0.12, 0.95/2 + 0.01, -0.10]),
-      s('yellow', [-0.10, 0.95/2 + 0.01, -0.10]),
-    ]),
-  ],
+  {
+    slots: 3,
+    pieces: [
+      P(foundation()),
+      P(frontWall(),  frontScrews ('red',   'green', 'blue')),
+      P(backWall(),   backScrews  ('blue',  'red',   'green')),
+      P(leftWall(),   leftScrews  ('green', 'blue',  'red')),
+      P(rightWall(),  rightScrews ('red',   'green', 'blue')),
+      P(roofA(),      roofScrews  ('green', 'blue',  'red')),
+      P(roofB(),      roofScrews  ('blue',  'red',   'green')),
+      // Chimney — small box on top of roof A
+      P({
+        size: [0.45, 0.95, 0.45],
+        pos:  [0.85, ROOF_PEAK_Y - 0.05, 0.55],
+        rot:  [0, 0, 0],
+        color: HOUSE.chimney,
+        topColor: HOUSE.chimney,
+      }, [
+        s('yellow', [-0.10, 0.95/2 + 0.01,  0.10]),
+        s('yellow', [ 0.12, 0.95/2 + 0.01, -0.10]),
+        s('yellow', [-0.10, 0.95/2 + 0.01, -0.10]),
+      ]),
+    ],
+  },
 
-  // ============ LEVEL 3: 문 + 굴뚝 (24 screws, 4 colors, 블로킹 등장) ============
-  // Door is mounted in front of center of front wall → it BLOCKS the middle
-  // front wall screw. Player must unscrew the door first to free that screw.
+  // ============ LEVEL 3: 문 + 굴뚝 (24 screws, 4 colors, 슬롯 5개, 블로킹) ============
+  // 5 slots makes inventory easy, but the door BLOCKS one front wall screw.
   // Counts: r=6, g=6, b=6, y=6
-  [
-    P(foundation()),
-    P(frontWall(),  frontScrews ('red',   'green', 'blue')),  // center 'green' will be blocked by door
-    P(backWall(),   backScrews  ('red',   'blue',  'yellow')),
-    P(leftWall(),   leftScrews  ('red',   'green', 'yellow')),
-    P(rightWall(),  rightScrews ('blue',  'green', 'yellow')),
-    P(roofA(),      roofScrews  ('red',   'blue',  'green')),
-    P(roofB(),      roofScrews  ('red',   'yellow','blue')),
-    // Chimney
-    P({
-      size: [0.45, 0.95, 0.45],
-      pos:  [0.85, ROOF_PEAK_Y - 0.05, 0.55],
-      rot:  [0, 0, 0],
-      color: HOUSE.chimney,
-    }, [
-      s('green',  [-0.10, 0.49,  0.10]),
-      s('yellow', [ 0.12, 0.49, -0.10]),
-      s('red',    [-0.10, 0.49, -0.10]),
-    ]),
-    // Door — mounted on front wall, blocks middle front wall screw
-    P({
-      size: [0.7, 1.2, 0.08],
-      pos:  [0, 0.45, HALF + WALL_T/2 + 0.04 + 0.01],
-      rot:  [0, 0, 0],
-      color: HOUSE.door,
-      topColor: HOUSE.door,
-    }, [
-      s('green',  [-0.20, 0.30, 0.04 + 0.01], [0, 0, 1]),
-      s('blue',   [ 0.20, 0.30, 0.04 + 0.01], [0, 0, 1]),
-      s('yellow', [ 0.00,-0.30, 0.04 + 0.01], [0, 0, 1]),
-    ]),
-  ],
+  {
+    slots: 5,
+    pieces: [
+      P(foundation()),
+      P(frontWall(),  frontScrews ('red',   'green', 'blue')),  // center 'green' is blocked by door
+      P(backWall(),   backScrews  ('red',   'blue',  'yellow')),
+      P(leftWall(),   leftScrews  ('red',   'green', 'yellow')),
+      P(rightWall(),  rightScrews ('blue',  'green', 'yellow')),
+      P(roofA(),      roofScrews  ('red',   'blue',  'green')),
+      P(roofB(),      roofScrews  ('red',   'yellow','blue')),
+      // Chimney
+      P({
+        size: [0.45, 0.95, 0.45],
+        pos:  [0.85, ROOF_PEAK_Y - 0.05, 0.55],
+        rot:  [0, 0, 0],
+        color: HOUSE.chimney,
+      }, [
+        s('green',  [-0.10, 0.49,  0.10]),
+        s('yellow', [ 0.12, 0.49, -0.10]),
+        s('red',    [-0.10, 0.49, -0.10]),
+      ]),
+      // Door — mounted on front wall, blocks middle front wall screw
+      P({
+        size: [0.7, 1.2, 0.08],
+        pos:  [0, 0.45, HALF + WALL_T/2 + 0.04 + 0.01],
+        rot:  [0, 0, 0],
+        color: HOUSE.door,
+        topColor: HOUSE.door,
+      }, [
+        s('green',  [-0.20, 0.30, 0.04 + 0.01], [0, 0, 1]),
+        s('blue',   [ 0.20, 0.30, 0.04 + 0.01], [0, 0, 1]),
+        s('yellow', [ 0.00,-0.30, 0.04 + 0.01], [0, 0, 1]),
+      ]),
+    ],
+  },
 ];
