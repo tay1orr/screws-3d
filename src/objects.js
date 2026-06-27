@@ -1,36 +1,41 @@
 import * as THREE from 'three';
 
-// ---------- Palette ----------
+// ---------- Palette (warm orange/cream cartoon) ----------
 export const SCREW_COLORS = {
-  red:    0xff4b5c,
-  blue:   0x3aa6ff,
-  green:  0x46d36b,
-  yellow: 0xffce3a,
-  purple: 0xb877ff,
-  pink:   0xff77b3,
+  red:    0xff5252,
+  blue:   0x3a8ee0,
+  green:  0x55cf65,
+  yellow: 0xffd542,
   orange: 0xff9543,
+  pink:   0xff8ec7,
+  purple: 0xa75fdd,
   cyan:   0x3ee0d0,
+  brown:  0x9a5d2d,
+  white:  0xeff2f5,
 };
 
 export const HOUSE = {
-  wall:       0xfde6c4, // cream
-  wallAlt:    0xfbcaa0, // peach
-  wallCold:   0xc6e4ff, // pastel blue (for variety)
-  roof:       0xf04a4a, // bright red
-  roofAlt:    0xff9430, // orange terracotta
-  foundation: 0x8a796a, // warm gray
-  door:       0x5a3a22, // dark wood
-  window:     0x9adcff, // light blue
-  chimney:    0xb3563f, // brick
-  garden:     0x6dd685, // grass green
-  porch:      0xe6c188, // light wood
+  foundation: 0xf6d8a0, // warm cream foundation
+  foundationDark: 0xd6a868,
+  wall:       0xfde0b0, // cream wall
+  wallAlt:    0xfacba1, // light peach
+  trim:       0xff9543, // orange trim
+  roof:       0xff8c42, // bright orange roof
+  roofDark:   0xc66b2c, // shadow
+  door:       0xff7a30, // strong orange door
+  doorDark:   0xa84510,
+  window:     0xffd13a, // yellow glass
+  windowFrame:0xff8c42, // orange frame
+  chimney:    0xfff0d8, // off-white chimney
+  chimneyTop: 0xc66b2c,
+  grass:      0x7cd790,
 };
 
 // ---------- Toon shading helpers ----------
 let _gradMap = null;
 function gradientMap() {
   if (_gradMap) return _gradMap;
-  const data = new Uint8Array([80, 140, 200, 245, 255]);
+  const data = new Uint8Array([100, 170, 220, 255]);
   _gradMap = new THREE.DataTexture(data, data.length, 1, THREE.RedFormat);
   _gradMap.minFilter = THREE.NearestFilter;
   _gradMap.magFilter = THREE.NearestFilter;
@@ -42,14 +47,23 @@ function makeToonMat(color) {
   return new THREE.MeshToonMaterial({ color, gradientMap: gradientMap() });
 }
 
-// Backside-outline trick — a slightly enlarged inverted-normal copy renders behind.
-function withOutline(mesh, scale = 1.04, color = 0x1c2230) {
-  const outlineMat = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide });
+// Soft outline: very thin, just a dark version of the surface tint
+function withOutline(mesh, scale = 1.012, color = null) {
+  const c = color ?? darken(getMeshTint(mesh), 0.45);
+  const outlineMat = new THREE.MeshBasicMaterial({ color: c, side: THREE.BackSide });
   const outline = new THREE.Mesh(mesh.geometry, outlineMat);
   outline.scale.setScalar(scale);
   outline.userData.isOutline = true;
   mesh.add(outline);
   return outline;
+}
+
+function getMeshTint(mesh) {
+  const m = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+  return m?.color?.getHex() ?? 0x553311;
+}
+function darken(hex, k) {
+  return new THREE.Color(hex).multiplyScalar(k).getHex();
 }
 
 const _q = new THREE.Quaternion();
@@ -63,7 +77,7 @@ export class Screw {
     this.normal = normal.clone().normalize();
     this.startWorldPos = worldPos.clone();
 
-    this.state = 'attached'; // attached | spinning | flying | inSlot | clearing | cleared
+    this.state = 'attached';
     this.blocked = false;
     this.plank = null;
     this.tray = null;
@@ -86,61 +100,51 @@ export class Screw {
 
   _createMesh() {
     const g = new THREE.Group();
-    const metal = makeToonMat(0xdde2ea);
+    const metal = makeToonMat(0xb8b6b2);
     const headMat = makeToonMat(this.colorHex);
-    headMat.emissive = new THREE.Color(this.colorHex).multiplyScalar(0.18);
-    const dark = new THREE.MeshBasicMaterial({ color: 0x141821 });
-    const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    headMat.emissive = new THREE.Color(this.colorHex).multiplyScalar(0.12);
+    const dark = new THREE.MeshBasicMaterial({ color: darken(this.colorHex, 0.3) });
 
     // shaft
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.06, 0.42, 18), metal);
-    shaft.position.y = -0.21;
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.05, 0.38, 14), metal);
+    shaft.position.y = -0.20;
     shaft.castShadow = true;
     g.add(shaft);
 
     // tip
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.10, 16), metal);
-    tip.position.y = -0.48;
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.08, 12), metal);
+    tip.position.y = -0.44;
     g.add(tip);
 
-    // collar (small ring just under head)
-    const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.085, 0.04, 22), metal);
+    // collar
+    const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.07, 0.035, 18), metal);
     collar.position.y = 0.0;
     g.add(collar);
 
-    // head — chunky for cartoon read
-    const headRadius = 0.20;
-    const head = new THREE.Mesh(
-      new THREE.CylinderGeometry(headRadius, headRadius, 0.11, 32),
-      headMat
-    );
-    head.position.y = 0.075;
+    // head — large, plastic cartoon look
+    const headR = 0.20;
+    const head = new THREE.Mesh(new THREE.CylinderGeometry(headR, headR, 0.10, 28), headMat);
+    head.position.y = 0.065;
     head.castShadow = true;
     head.userData.isHead = true;
     g.add(head);
-    withOutline(head, 1.06);
 
-    // soft dome on top
+    // dome
     const dome = new THREE.Mesh(
-      new THREE.SphereGeometry(headRadius, 30, 18, 0, Math.PI * 2, 0, Math.PI / 2.3),
+      new THREE.SphereGeometry(headR, 26, 16, 0, Math.PI * 2, 0, Math.PI / 2.3),
       headMat
     );
-    dome.position.y = 0.13;
-    dome.scale.y = 0.32;
+    dome.position.y = 0.115;
+    dome.scale.y = 0.36;
     g.add(dome);
 
-    // tiny white highlight (top-left of dome) — gives plastic cartoon shine
-    const shine = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), white);
-    shine.position.set(-0.07, 0.155, -0.06);
-    shine.scale.set(1, 0.5, 1);
-    g.add(shine);
-
-    // cross slot (thicker for visibility)
-    const s1 = new THREE.Mesh(new THREE.BoxGeometry(0.27, 0.028, 0.05), dark);
-    s1.position.y = 0.14;
+    // recessed cross slot (darker, no thick block — looks cleaner)
+    const slotMat = dark;
+    const s1 = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.02, 0.05), slotMat);
+    s1.position.y = 0.13;
     g.add(s1);
-    const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.028, 0.27), dark);
-    s2.position.y = 0.14;
+    const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.02, 0.24), slotMat);
+    s2.position.y = 0.13;
     g.add(s2);
 
     this._headMat = headMat;
@@ -156,7 +160,7 @@ export class Screw {
       this._headMat.emissive.setHex(0x000000);
     } else {
       this._headMat.color.copy(c);
-      this._headMat.emissive.copy(c).multiplyScalar(0.18);
+      this._headMat.emissive.copy(c).multiplyScalar(0.12);
     }
   }
 
@@ -173,7 +177,7 @@ export class Screw {
     if (this.state === 'spinning') {
       this.spinTime += dt;
       this.mesh.rotateOnAxis(UP, dt * 26);
-      this.mesh.position.addScaledVector(this.normal, dt * 0.62);
+      this.mesh.position.addScaledVector(this.normal, dt * 0.6);
       if (this.spinTime > 0.32) {
         this.state = 'flying';
         this.flightTime = 0;
@@ -181,7 +185,7 @@ export class Screw {
         const target = this.tray.getSlotWorldPos(this.slotIndex, this.stackIndex);
         this.targetPos = target;
         const mid = this.startPos.clone().lerp(target, 0.5);
-        mid.y = Math.max(this.startPos.y, target.y) + 1.6;
+        mid.y = Math.max(this.startPos.y, target.y) + 1.5;
         this.midPos = mid;
       }
       return;
@@ -227,7 +231,6 @@ export class Screw {
 }
 
 // ---------- Plank / Piece ----------
-// spec: { size:[x,y,z], pos:[x,y,z], rot:[x,y,z], color:hex, topColor?:hex, screws:[] }
 export class Plank {
   constructor(spec) {
     this.spec = spec;
@@ -239,14 +242,13 @@ export class Plank {
     this.vel = new THREE.Vector3();
     this.angVel = new THREE.Vector3();
 
-    const baseColor = spec.color ?? HOUSE.wall;
-    const topColor  = spec.topColor ?? baseColor;
-    const mainMat = makeToonMat(baseColor);
-    const topMat  = makeToonMat(topColor);
-    const darkCol = new THREE.Color(baseColor).multiplyScalar(0.82).getHex();
-    const sideMat = makeToonMat(darkCol);
+    const base = spec.color ?? HOUSE.wall;
+    const top  = spec.topColor ?? base;
+    const sideHex = darken(base, 0.88);
+    const mainMat = makeToonMat(base);
+    const topMat  = makeToonMat(top);
+    const sideMat = makeToonMat(sideHex);
 
-    // BoxGeometry face order: +X, -X, +Y, -Y, +Z, -Z
     const mats = [sideMat, sideMat, topMat, mainMat, mainMat, mainMat];
     this.mesh = new THREE.Mesh(
       new THREE.BoxGeometry(this.size.x, this.size.y, this.size.z),
@@ -258,7 +260,8 @@ export class Plank {
     this.mesh.receiveShadow = true;
     this.mesh.userData.plank = this;
 
-    withOutline(this.mesh, 1.025);
+    // very subtle outline only — no thick cartoon line
+    withOutline(this.mesh, 1.008, darken(base, 0.4));
   }
 
   addScrew(s) { this.screws.push(s); s.plank = this; }
@@ -288,107 +291,101 @@ export class Plank {
   }
 }
 
-// ---------- Decoration (no screws, just visual flair) ----------
-// Used for windows, doors, garden tiles, etc. that should fall along with their parent.
-export class Decoration {
-  constructor(spec) {
-    this.spec = spec;
-    const size = new THREE.Vector3().fromArray(spec.size);
-    const mat = makeToonMat(spec.color ?? 0xffffff);
-    this.mesh = new THREE.Mesh(new THREE.BoxGeometry(size.x, size.y, size.z), mat);
-    this.mesh.position.fromArray(spec.pos);
-    if (spec.rot) this.mesh.rotation.fromArray(spec.rot);
-    withOutline(this.mesh, 1.03);
-  }
-}
-
 // ---------- Slot Tray ----------
+// 7 slots laid out as 2 large bins on top + 5 small dots on bottom.
+// All slots are functionally identical: each holds up to 3 same-color screws,
+// then clears on match. The visual split mirrors the reference UI.
+const TOP_ROW    = 2;
+const BOTTOM_ROW = 5;
+const TOTAL_SLOTS = TOP_ROW + BOTTOM_ROW;
+
 export class SlotTray {
-  constructor(slotCount = 3) {
-    this.slotCount = slotCount;
+  constructor() {
+    this.slotCount = TOTAL_SLOTS;
     this.maxPerSlot = 3;
-    this.slots = new Array(slotCount).fill(null);
-    this.spacing = 0.85;
+    this.slots = new Array(TOTAL_SLOTS).fill(null);
     this.group = new THREE.Group();
     this._build();
   }
 
-  setSlotCount(n) {
-    if (n === this.slotCount) {
-      this.reset();
-      return;
-    }
-    this.slotCount = n;
-    this.slots = new Array(n).fill(null);
-    // Clear old visuals
-    while (this.group.children.length) {
-      const c = this.group.children[0];
-      this.group.remove(c);
-    }
-    this._build();
-  }
+  // kept for API compatibility — slot count is fixed
+  setSlotCount(_n) { this.reset(); }
 
   _build() {
-    const n = this.slotCount;
-    const spacing = this.spacing;
-    const trayWidth = Math.max(2.4, n * spacing + 0.55);
+    const trayMat   = makeToonMat(0xffffff);
+    const rimMat    = makeToonMat(HOUSE.trim);
+    const dotMat    = new THREE.MeshToonMaterial({ color: 0x9aa6b8, gradientMap: gradientMap() });
+    const dotBase   = new THREE.MeshToonMaterial({ color: 0x5e6878, gradientMap: gradientMap() });
+    const binShellMat = new THREE.MeshToonMaterial({ color: 0xf6efe2, gradientMap: gradientMap() });
 
-    const trayMat = makeToonMat(0xf8efdc);
-    const rimMat  = makeToonMat(0xd5a866);
-    const holderMat = new THREE.MeshToonMaterial({
-      color: 0xc3e0ff,
-      gradientMap: gradientMap(),
-      transparent: true,
-      opacity: 0.55,
-    });
-
-    const tray = new THREE.Mesh(new THREE.BoxGeometry(trayWidth, 0.18, 0.95), trayMat);
-    this.group.add(tray);
-    withOutline(tray, 1.025);
-
-    const rimGeo = new THREE.BoxGeometry(trayWidth, 0.07, 0.07);
-    for (const z of [0.46, -0.46]) {
-      const r = new THREE.Mesh(rimGeo, rimMat);
-      r.position.set(0, 0.12, z);
-      this.group.add(r);
+    // Top row: two rounded "bin" containers
+    for (let i = 0; i < TOP_ROW; i++) {
+      const x = (-0.5 + i) * 1.1;
+      // outer shell (rounded square look via slight bevel)
+      const shell = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.85, 0.5), binShellMat);
+      shell.position.set(x, 0.50, 0);
+      this.group.add(shell);
+      withOutline(shell, 1.025, 0x6b4a2a);
+      // rim border
+      const rim = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.10, 0.5), rimMat);
+      rim.position.set(x, 0.50 + 0.42, 0);
+      this.group.add(rim);
+      const rim2 = rim.clone();
+      rim2.position.set(x, 0.50 - 0.42, 0);
+      this.group.add(rim2);
+      // inner cylinder slot where screws stack
+      const inner = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.22, 0.22, 0.55, 24, 1, true),
+        new THREE.MeshToonMaterial({
+          color: 0xc3e0ff, gradientMap: gradientMap(),
+          transparent: true, opacity: 0.55,
+        })
+      );
+      inner.position.set(x, 0.50, 0.08);
+      this.group.add(inner);
     }
 
-    const startX = -((n - 1) * spacing) / 2;
-    this.holders = [];
-    for (let i = 0; i < n; i++) {
-      const x = startX + i * spacing;
-      const holder = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.24, 0.24, 0.62, 30, 1, true),
-        holderMat
+    // Bottom row: five small disc slots
+    for (let j = 0; j < BOTTOM_ROW; j++) {
+      const x = (-2 + j) * 0.42;
+      const ring = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.18, 0.18, 0.06, 24),
+        dotMat
       );
-      holder.position.set(x, 0.42, 0);
-      this.group.add(holder);
-
+      ring.position.set(x, -0.15, 0);
+      this.group.add(ring);
       const disc = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.26, 0.26, 0.05, 30),
-        rimMat
+        new THREE.CylinderGeometry(0.12, 0.12, 0.04, 22),
+        dotBase
       );
-      disc.position.set(x, 0.12, 0);
+      disc.position.set(x, -0.13, 0);
       this.group.add(disc);
-      withOutline(disc, 1.04);
-
-      this.holders.push(holder);
     }
   }
 
   getSlotLocalPos(i, stack = 0) {
-    const startX = -((this.slotCount - 1) * this.spacing) / 2;
-    return new THREE.Vector3(startX + i * this.spacing, 0.23 + stack * 0.22, 0);
+    if (i < TOP_ROW) {
+      const x = (-0.5 + i) * 1.1;
+      return new THREE.Vector3(x, 0.30 + stack * 0.22, 0.08);
+    } else {
+      const j = i - TOP_ROW;
+      const x = (-2 + j) * 0.42;
+      return new THREE.Vector3(x, -0.05 + stack * 0.18, 0);
+    }
   }
+
   getSlotWorldPos(i, stack = 0) {
     this.group.updateMatrixWorld(true);
     return this.getSlotLocalPos(i, stack).applyMatrix4(this.group.matrixWorld);
   }
+
   findSlotForColor(color) {
+    // Prefer reusing a slot already collecting this color
     for (let i = 0; i < this.slotCount; i++) {
       const s = this.slots[i];
       if (s && s.color === color && s.screws.length < this.maxPerSlot) return i;
     }
+    // Else fill from top row first (visually primary), then bottom queue
     for (let i = 0; i < this.slotCount; i++) if (!this.slots[i]) return i;
     return -1;
   }
@@ -412,5 +409,5 @@ export class SlotTray {
     return null;
   }
   isAllOccupied() { return this.slots.every(s => s !== null); }
-  reset() { this.slots = new Array(this.slotCount).fill(null); }
+  reset() { this.slots = new Array(TOTAL_SLOTS).fill(null); }
 }

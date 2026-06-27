@@ -13,11 +13,11 @@ export class Game {
     this.scene = scene;
     this.camera = camera;
 
-    this.tray = new SlotTray(3);
-    // tray is a child of camera so it always sits in screen space
+    this.tray = new SlotTray();
+    // tray is a child of camera so it always sits in screen space — top of view
     camera.add(this.tray.group);
-    this.tray.group.position.set(0, -1.55, -4.2);
-    this.tray.group.scale.set(0.9, 0.9, 0.9);
+    this.tray.group.position.set(0, 1.55, -4.4);
+    this.tray.group.scale.set(0.85, 0.85, 0.85);
 
     this.planks = [];
     this.screws = [];

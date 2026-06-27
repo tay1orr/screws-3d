@@ -49,8 +49,8 @@ const skyMat = new THREE.ShaderMaterial({
 scene.add(new THREE.Mesh(skyGeo, skyMat));
 
 // ---------- Camera ----------
-const camera = new THREE.PerspectiveCamera(46, window.innerWidth / window.innerHeight, 0.1, 120);
-camera.position.set(5, 4.2, 7.5);
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 120);
+camera.position.set(5.5, 4.5, 8.5);
 scene.add(camera);
 
 // ---------- Lights ----------
@@ -80,10 +80,10 @@ grass.position.y = -0.301;
 grass.receiveShadow = true;
 groundGroup.add(grass);
 
-// Outline ring on grass
+// Soft darker ring on grass (subtle rim, not a black outline)
 const ring = new THREE.Mesh(
-  new THREE.RingGeometry(7.92, 8, 60),
-  new THREE.MeshBasicMaterial({ color: 0x1c2230, side: THREE.DoubleSide })
+  new THREE.RingGeometry(7.85, 8, 60),
+  new THREE.MeshBasicMaterial({ color: 0x4a8a55, side: THREE.DoubleSide })
 );
 ring.rotation.x = -Math.PI / 2;
 ring.position.y = -0.300;
