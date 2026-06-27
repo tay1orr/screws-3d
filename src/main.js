@@ -9,89 +9,108 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+// No tone mapping → keeps cartoon colors bright and poppy.
+renderer.toneMapping = THREE.NoToneMapping;
 renderer.setSize(window.innerWidth, window.innerHeight);
 
 // ---------- Scene ----------
 const scene = new THREE.Scene();
-// gradient sky-like background via vertex-colored sphere
-const skyGeo = new THREE.SphereGeometry(60, 32, 16);
+
+// Cartoon-bright sky gradient via vertex-shader sphere
+const skyGeo = new THREE.SphereGeometry(80, 32, 16);
 const skyMat = new THREE.ShaderMaterial({
   side: THREE.BackSide,
   uniforms: {
-    topColor: { value: new THREE.Color(0x1a2240) },
-    botColor: { value: new THREE.Color(0x05060f) },
+    topColor: { value: new THREE.Color(0x6cc4ff) },   // sky blue
+    midColor: { value: new THREE.Color(0xb8e3ff) },   // pale blue
+    botColor: { value: new THREE.Color(0xfff4d8) },   // warm cream
   },
   vertexShader: `
-    varying vec3 vWorldPos;
+    varying vec3 vDir;
     void main() {
-      vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
+      vDir = normalize((modelMatrix * vec4(position, 0.0)).xyz);
       gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     }
   `,
   fragmentShader: `
     uniform vec3 topColor;
+    uniform vec3 midColor;
     uniform vec3 botColor;
-    varying vec3 vWorldPos;
+    varying vec3 vDir;
     void main() {
-      float h = normalize(vWorldPos).y * 0.5 + 0.5;
-      gl_FragColor = vec4(mix(botColor, topColor, smoothstep(0.0, 0.7, h)), 1.0);
+      float h = vDir.y * 0.5 + 0.5;
+      vec3 col = mix(botColor, midColor, smoothstep(0.0, 0.55, h));
+      col = mix(col, topColor, smoothstep(0.55, 1.0, h));
+      gl_FragColor = vec4(col, 1.0);
     }
   `,
 });
 scene.add(new THREE.Mesh(skyGeo, skyMat));
-scene.fog = new THREE.Fog(0x0e1530, 14, 32);
 
 // ---------- Camera ----------
-const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(0, 4.5, 9);
+const camera = new THREE.PerspectiveCamera(46, window.innerWidth / window.innerHeight, 0.1, 120);
+camera.position.set(5, 4.2, 7.5);
 scene.add(camera);
 
 // ---------- Lights ----------
-scene.add(new THREE.AmbientLight(0x8a9bc7, 0.65));
+scene.add(new THREE.HemisphereLight(0xfff7e0, 0x88a4c8, 0.85));
 
-const sun = new THREE.DirectionalLight(0xffffff, 1.1);
-sun.position.set(6, 12, 7);
+const sun = new THREE.DirectionalLight(0xfff2c8, 0.95);
+sun.position.set(6, 12, 5);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 const sc = sun.shadow.camera;
-sc.left = -9; sc.right = 9; sc.top = 9; sc.bottom = -9;
+sc.left = -10; sc.right = 10; sc.top = 10; sc.bottom = -10;
 sc.near = 0.5; sc.far = 30;
 sun.shadow.bias = -0.0008;
-sun.shadow.radius = 4;
+sun.shadow.radius = 3;
 scene.add(sun);
 
-const rim = new THREE.DirectionalLight(0x6f93ff, 0.45);
-rim.position.set(-6, 4, -6);
+const rim = new THREE.DirectionalLight(0xa0c8ff, 0.35);
+rim.position.set(-6, 3, -6);
 scene.add(rim);
 
-const fill = new THREE.DirectionalLight(0xffd6a0, 0.18);
-fill.position.set(2, 3, -8);
-scene.add(fill);
+// ---------- Ground (grass disc + shadow) ----------
+const groundGroup = new THREE.Group();
+const grassMat = new THREE.MeshToonMaterial({ color: 0x7cd790 });
+const grass = new THREE.Mesh(new THREE.CircleGeometry(8, 48), grassMat);
+grass.rotation.x = -Math.PI / 2;
+grass.position.y = -0.301;
+grass.receiveShadow = true;
+groundGroup.add(grass);
 
-// ---------- Ground (shadow catcher) ----------
-const ground = new THREE.Mesh(
-  new THREE.CircleGeometry(20, 48),
-  new THREE.ShadowMaterial({ opacity: 0.32 })
+// Outline ring on grass
+const ring = new THREE.Mesh(
+  new THREE.RingGeometry(7.92, 8, 60),
+  new THREE.MeshBasicMaterial({ color: 0x1c2230, side: THREE.DoubleSide })
 );
-ground.rotation.x = -Math.PI / 2;
-ground.position.y = -3;
-ground.receiveShadow = true;
-scene.add(ground);
+ring.rotation.x = -Math.PI / 2;
+ring.position.y = -0.300;
+groundGroup.add(ring);
+
+// Soft shadow plane beyond grass
+const shadowPlane = new THREE.Mesh(
+  new THREE.CircleGeometry(20, 48),
+  new THREE.ShadowMaterial({ opacity: 0.28 })
+);
+shadowPlane.rotation.x = -Math.PI / 2;
+shadowPlane.position.y = -0.302;
+shadowPlane.receiveShadow = true;
+groundGroup.add(shadowPlane);
+scene.add(groundGroup);
 
 // ---------- Controls ----------
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
 controls.dampingFactor = 0.09;
 controls.minPolarAngle = 0.18;
-controls.maxPolarAngle = Math.PI / 2 - 0.08;
+controls.maxPolarAngle = Math.PI / 2 - 0.05;
 controls.minDistance = 6;
-controls.maxDistance = 14;
+controls.maxDistance = 16;
 controls.enablePan = false;
-controls.rotateSpeed = 0.8;
-controls.target.set(0, 0.3, 0);
+controls.rotateSpeed = 0.85;
+controls.target.set(0, 1.0, 0);
 controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
 
 // ---------- Game ----------
@@ -119,7 +138,6 @@ canvas.addEventListener('pointerup', (e) => {
   downPos = null;
   if (dist < 8 && dt < 300) handleTap(e);
 });
-
 canvas.addEventListener('pointercancel', () => { downPos = null; });
 
 function handleTap(e) {
@@ -181,13 +199,13 @@ game.onStateChange = (state) => {
   levelLabel.textContent = `Level ${game.levelIdx + 1}`;
   if (state === 'won') {
     overlayEmoji.textContent = '🎉';
-    overlayTitle.textContent = 'Level Complete!';
-    overlayMsg.textContent = '훌륭해요! 다음 레벨로 가볼까요?';
+    overlayTitle.textContent = '집을 분해했어요!';
+    overlayMsg.textContent = '훌륭해요! 다음 집으로 가볼까요?';
     overlayBtn.textContent = '다음 레벨';
     setTimeout(() => overlay.classList.remove('hidden'), 700);
     nextBtn.disabled = false;
   } else if (state === 'lost') {
-    overlayEmoji.textContent = '💥';
+    overlayEmoji.textContent = '😵';
     overlayTitle.textContent = 'Game Over';
     overlayMsg.textContent = '슬롯이 가득 찼어요. 다시 시도해보세요!';
     overlayBtn.textContent = '다시 시도';

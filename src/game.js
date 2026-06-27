@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Screw, Plank, SlotTray, WOOD_COLORS } from './objects.js';
+import { Screw, Plank, SlotTray } from './objects.js';
 import { LEVELS } from './levels.js';
 import {
   playClick, playUnscrew, playSlot, playMatch,
@@ -50,7 +50,7 @@ export class Game {
 
     const spec = LEVELS[this.levelIdx];
     for (const ps of spec) {
-      const plank = new Plank(ps.size, ps.pos, ps.rot, WOOD_COLORS[ps.woodIdx % WOOD_COLORS.length]);
+      const plank = new Plank(ps);
       this.scene.add(plank.mesh);
       this.planks.push(plank);
 

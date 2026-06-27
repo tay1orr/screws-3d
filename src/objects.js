@@ -1,20 +1,57 @@
 import * as THREE from 'three';
-import { generateWoodTexture } from './textures.js';
 
+// ---------- Palette ----------
 export const SCREW_COLORS = {
-  red:    0xe74c3c,
-  blue:   0x3aa0e9,
-  green:  0x2ecc71,
-  yellow: 0xf4c430,
-  purple: 0x9b59b6,
-  pink:   0xff5e9c,
-  orange: 0xff8a3d,
-  cyan:   0x29d8c3,
+  red:    0xff4b5c,
+  blue:   0x3aa6ff,
+  green:  0x46d36b,
+  yellow: 0xffce3a,
+  purple: 0xb877ff,
+  pink:   0xff77b3,
+  orange: 0xff9543,
+  cyan:   0x3ee0d0,
 };
 
-export const WOOD_COLORS = [0xc8915a, 0xa67244, 0xd9b07b, 0x8b5a2b, 0xb9844f];
+export const HOUSE = {
+  wall:       0xfde6c4, // cream
+  wallAlt:    0xfbcaa0, // peach
+  wallCold:   0xc6e4ff, // pastel blue (for variety)
+  roof:       0xf04a4a, // bright red
+  roofAlt:    0xff9430, // orange terracotta
+  foundation: 0x8a796a, // warm gray
+  door:       0x5a3a22, // dark wood
+  window:     0x9adcff, // light blue
+  chimney:    0xb3563f, // brick
+  garden:     0x6dd685, // grass green
+  porch:      0xe6c188, // light wood
+};
 
-const _v = new THREE.Vector3();
+// ---------- Toon shading helpers ----------
+let _gradMap = null;
+function gradientMap() {
+  if (_gradMap) return _gradMap;
+  const data = new Uint8Array([80, 140, 200, 245, 255]);
+  _gradMap = new THREE.DataTexture(data, data.length, 1, THREE.RedFormat);
+  _gradMap.minFilter = THREE.NearestFilter;
+  _gradMap.magFilter = THREE.NearestFilter;
+  _gradMap.needsUpdate = true;
+  return _gradMap;
+}
+
+function makeToonMat(color) {
+  return new THREE.MeshToonMaterial({ color, gradientMap: gradientMap() });
+}
+
+// Backside-outline trick — a slightly enlarged inverted-normal copy renders behind.
+function withOutline(mesh, scale = 1.04, color = 0x1c2230) {
+  const outlineMat = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide });
+  const outline = new THREE.Mesh(mesh.geometry, outlineMat);
+  outline.scale.setScalar(scale);
+  outline.userData.isOutline = true;
+  mesh.add(outline);
+  return outline;
+}
+
 const _q = new THREE.Quaternion();
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -29,17 +66,13 @@ export class Screw {
     this.state = 'attached'; // attached | spinning | flying | inSlot | clearing | cleared
     this.blocked = false;
     this.plank = null;
-
-    // slot info during flight
     this.tray = null;
     this.slotIndex = -1;
     this.stackIndex = 0;
-
     this.spinTime = 0;
     this.flightTime = 0;
     this.flightDur = 0.55;
     this.clearTime = 0;
-
     this.startPos = null;
     this.midPos = null;
     this.targetPos = null;
@@ -52,65 +85,79 @@ export class Screw {
   }
 
   _createMesh() {
-    const group = new THREE.Group();
-    const metal = new THREE.MeshStandardMaterial({ color: 0xc8ccd2, metalness: 0.95, roughness: 0.22 });
-    const headMat = new THREE.MeshStandardMaterial({
-      color: this.colorHex, metalness: 0.55, roughness: 0.35,
-      emissive: this.colorHex, emissiveIntensity: 0.18,
-    });
-    const dark = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.4, roughness: 0.7 });
+    const g = new THREE.Group();
+    const metal = makeToonMat(0xdde2ea);
+    const headMat = makeToonMat(this.colorHex);
+    headMat.emissive = new THREE.Color(this.colorHex).multiplyScalar(0.18);
+    const dark = new THREE.MeshBasicMaterial({ color: 0x141821 });
+    const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
 
-    // shaft (threaded look via thin rings)
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.055, 0.42, 18), metal);
+    // shaft
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.06, 0.42, 18), metal);
     shaft.position.y = -0.21;
     shaft.castShadow = true;
-    group.add(shaft);
+    g.add(shaft);
 
     // tip
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.08, 14), metal);
-    tip.position.y = -0.46;
-    group.add(tip);
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.10, 16), metal);
+    tip.position.y = -0.48;
+    g.add(tip);
 
-    // collar (just under head)
-    const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.08, 0.03, 20), metal);
-    collar.position.y = -0.01;
-    group.add(collar);
+    // collar (small ring just under head)
+    const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.085, 0.04, 22), metal);
+    collar.position.y = 0.0;
+    g.add(collar);
 
-    // head
-    const head = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.08, 28), headMat);
-    head.position.y = 0.05;
+    // head — chunky for cartoon read
+    const headRadius = 0.20;
+    const head = new THREE.Mesh(
+      new THREE.CylinderGeometry(headRadius, headRadius, 0.11, 32),
+      headMat
+    );
+    head.position.y = 0.075;
     head.castShadow = true;
     head.userData.isHead = true;
-    group.add(head);
+    g.add(head);
+    withOutline(head, 1.06);
 
-    // head dome top (subtle)
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.14, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2.4), headMat);
-    dome.position.y = 0.09;
-    dome.scale.y = 0.25;
-    group.add(dome);
+    // soft dome on top
+    const dome = new THREE.Mesh(
+      new THREE.SphereGeometry(headRadius, 30, 18, 0, Math.PI * 2, 0, Math.PI / 2.3),
+      headMat
+    );
+    dome.position.y = 0.13;
+    dome.scale.y = 0.32;
+    g.add(dome);
 
-    // cross slot
-    const s1 = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.02, 0.035), dark);
-    s1.position.y = 0.10;
-    group.add(s1);
-    const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.02, 0.20), dark);
-    s2.position.y = 0.10;
-    group.add(s2);
+    // tiny white highlight (top-left of dome) — gives plastic cartoon shine
+    const shine = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), white);
+    shine.position.set(-0.07, 0.155, -0.06);
+    shine.scale.set(1, 0.5, 1);
+    g.add(shine);
+
+    // cross slot (thicker for visibility)
+    const s1 = new THREE.Mesh(new THREE.BoxGeometry(0.27, 0.028, 0.05), dark);
+    s1.position.y = 0.14;
+    g.add(s1);
+    const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.028, 0.27), dark);
+    s2.position.y = 0.14;
+    g.add(s2);
 
     this._headMat = headMat;
-    return group;
+    return g;
   }
 
   setBlocked(b) {
     if (this.blocked === b) return;
     this.blocked = b;
-    this._headMat.emissiveIntensity = b ? 0.0 : 0.18;
-    this._headMat.color.setHex(b ? this._dim(this.colorHex, 0.5) : this.colorHex);
-  }
-
-  _dim(hex, k) {
-    const c = new THREE.Color(hex).multiplyScalar(k);
-    return c.getHex();
+    const c = new THREE.Color(this.colorHex);
+    if (b) {
+      this._headMat.color.copy(c).multiplyScalar(0.55);
+      this._headMat.emissive.setHex(0x000000);
+    } else {
+      this._headMat.color.copy(c);
+      this._headMat.emissive.copy(c).multiplyScalar(0.18);
+    }
   }
 
   startUnscrew(tray, slotIndex, stackIndex) {
@@ -125,8 +172,8 @@ export class Screw {
   update(dt) {
     if (this.state === 'spinning') {
       this.spinTime += dt;
-      this.mesh.rotateOnAxis(UP, dt * 22);
-      this.mesh.position.addScaledVector(this.normal, dt * 0.55);
+      this.mesh.rotateOnAxis(UP, dt * 26);
+      this.mesh.position.addScaledVector(this.normal, dt * 0.62);
       if (this.spinTime > 0.32) {
         this.state = 'flying';
         this.flightTime = 0;
@@ -134,7 +181,7 @@ export class Screw {
         const target = this.tray.getSlotWorldPos(this.slotIndex, this.stackIndex);
         this.targetPos = target;
         const mid = this.startPos.clone().lerp(target, 0.5);
-        mid.y = Math.max(this.startPos.y, target.y) + 1.4;
+        mid.y = Math.max(this.startPos.y, target.y) + 1.6;
         this.midPos = mid;
       }
       return;
@@ -143,22 +190,17 @@ export class Screw {
     if (this.state === 'flying') {
       this.flightTime += dt;
       const t = Math.min(this.flightTime / this.flightDur, 1);
-      // ease in/out
       const e = t * t * (3 - 2 * t);
-      // refresh target a bit in case camera moved
-      const target = this.tray.getSlotWorldPos(this.slotIndex, this.stackIndex);
-      this.targetPos.lerp(target, 0.25);
-      // bezier
+      const liveTarget = this.tray.getSlotWorldPos(this.slotIndex, this.stackIndex);
+      this.targetPos.lerp(liveTarget, 0.25);
       const p01 = this.startPos.clone().lerp(this.midPos, e);
       const p12 = this.midPos.clone().lerp(this.targetPos, e);
       this.mesh.position.copy(p01.lerp(p12, e));
-      this.mesh.rotateOnAxis(UP, dt * 14);
-      // smoothly upright the orientation toward tray (camera) world rotation
+      this.mesh.rotateOnAxis(UP, dt * 16);
       const camQ = new THREE.Quaternion();
       this.tray.group.getWorldQuaternion(camQ);
-      this.mesh.quaternion.slerp(camQ, 0.18);
+      this.mesh.quaternion.slerp(camQ, 0.2);
       if (t >= 1) {
-        // attach to tray so it follows the camera
         this.tray.group.attach(this.mesh);
         const localTarget = this.tray.getSlotLocalPos(this.slotIndex, this.stackIndex);
         this.mesh.position.copy(localTarget);
@@ -173,7 +215,7 @@ export class Screw {
       const t = Math.min(this.clearTime / 0.35, 1);
       const s = Math.max(0, 1 - t);
       this.mesh.scale.set(s, s, s);
-      this.mesh.position.y += dt * 1.2;
+      this.mesh.position.y += dt * 1.4;
       if (t >= 1) this.state = 'cleared';
     }
   }
@@ -184,73 +226,79 @@ export class Screw {
   }
 }
 
-// ---------- Plank ----------
+// ---------- Plank / Piece ----------
+// spec: { size:[x,y,z], pos:[x,y,z], rot:[x,y,z], color:hex, topColor?:hex, screws:[] }
 export class Plank {
-  constructor(size, position, rotation, woodHex) {
-    this.size = size.clone();
-    this.position = position.clone();
-    this.rotation = rotation.clone();
+  constructor(spec) {
+    this.spec = spec;
+    this.size = new THREE.Vector3().fromArray(spec.size);
+    this.position = new THREE.Vector3().fromArray(spec.pos);
+    this.rotation = new THREE.Euler().fromArray(spec.rot);
     this.screws = [];
-    this.state = 'attached'; // attached | falling | gone
+    this.state = 'attached';
     this.vel = new THREE.Vector3();
     this.angVel = new THREE.Vector3();
 
-    const tex = generateWoodTexture(woodHex);
-    tex.repeat.set(Math.max(1, size.x / 1.8), Math.max(1, size.z / 1.8));
-    const mat = new THREE.MeshStandardMaterial({
-      map: tex,
-      roughness: 0.68,
-      metalness: 0.04,
-      color: 0xffffff,
-    });
-    // softer side faces (no texture stretching): use array of materials
-    const sideMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(woodHex).multiplyScalar(0.78),
-      roughness: 0.75,
-      metalness: 0.04,
-    });
-    const mats = [sideMat, sideMat, mat, mat, sideMat, sideMat];
+    const baseColor = spec.color ?? HOUSE.wall;
+    const topColor  = spec.topColor ?? baseColor;
+    const mainMat = makeToonMat(baseColor);
+    const topMat  = makeToonMat(topColor);
+    const darkCol = new THREE.Color(baseColor).multiplyScalar(0.82).getHex();
+    const sideMat = makeToonMat(darkCol);
 
-    this.mesh = new THREE.Mesh(new THREE.BoxGeometry(size.x, size.y, size.z), mats);
-    this.mesh.position.copy(position);
-    this.mesh.rotation.copy(rotation);
+    // BoxGeometry face order: +X, -X, +Y, -Y, +Z, -Z
+    const mats = [sideMat, sideMat, topMat, mainMat, mainMat, mainMat];
+    this.mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(this.size.x, this.size.y, this.size.z),
+      mats
+    );
+    this.mesh.position.copy(this.position);
+    this.mesh.rotation.copy(this.rotation);
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;
     this.mesh.userData.plank = this;
+
+    withOutline(this.mesh, 1.025);
   }
 
-  addScrew(screw) {
-    this.screws.push(screw);
-    screw.plank = this;
-  }
-
-  removeScrew(screw) {
-    const i = this.screws.indexOf(screw);
+  addScrew(s) { this.screws.push(s); s.plank = this; }
+  removeScrew(s) {
+    const i = this.screws.indexOf(s);
     if (i >= 0) this.screws.splice(i, 1);
-    if (this.screws.length === 0 && this.state === 'attached') {
-      this.startFall();
-    }
+    if (this.screws.length === 0 && this.state === 'attached') this.startFall();
   }
-
   startFall() {
     this.state = 'falling';
-    this.vel.set((Math.random() - 0.5) * 1.2, 0.6, (Math.random() - 0.5) * 1.2);
+    this.vel.set((Math.random() - 0.5) * 1.4, 0.85, (Math.random() - 0.5) * 1.4);
     this.angVel.set(
-      (Math.random() - 0.5) * 3,
-      (Math.random() - 0.5) * 3,
-      (Math.random() - 0.5) * 3,
+      (Math.random() - 0.5) * 3.6,
+      (Math.random() - 0.5) * 3.6,
+      (Math.random() - 0.5) * 3.6,
     );
   }
-
   update(dt) {
     if (this.state === 'falling') {
-      this.vel.y -= 12 * dt;
+      this.vel.y -= 13 * dt;
       this.mesh.position.addScaledVector(this.vel, dt);
       this.mesh.rotation.x += this.angVel.x * dt;
       this.mesh.rotation.y += this.angVel.y * dt;
       this.mesh.rotation.z += this.angVel.z * dt;
-      if (this.mesh.position.y < -12) this.state = 'gone';
+      if (this.mesh.position.y < -16) this.state = 'gone';
     }
+  }
+}
+
+// ---------- Decoration (no screws, just visual flair) ----------
+// Used for windows, doors, garden tiles, etc. that should fall along with their parent.
+export class Decoration {
+  constructor(spec) {
+    this.spec = spec;
+    const size = new THREE.Vector3().fromArray(spec.size);
+    const mat = makeToonMat(spec.color ?? 0xffffff);
+    this.mesh = new THREE.Mesh(new THREE.BoxGeometry(size.x, size.y, size.z), mat);
+    this.mesh.position.fromArray(spec.pos);
+    if (spec.rot) this.mesh.rotation.fromArray(spec.rot);
+    withOutline(this.mesh, 1.03);
   }
 }
 
@@ -259,52 +307,60 @@ export class SlotTray {
   constructor() {
     this.slotCount = 3;
     this.maxPerSlot = 3;
-    this.slots = [null, null, null]; // each: { color, screws[] }
-
+    this.slots = [null, null, null];
     this.group = new THREE.Group();
     this._build();
   }
 
   _build() {
-    // base tray
-    const trayMat = new THREE.MeshStandardMaterial({ color: 0x3b4768, roughness: 0.55, metalness: 0.25 });
-    const tray = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.12, 0.8), trayMat);
-    tray.position.y = 0;
+    const trayMat = makeToonMat(0xf8efdc);
+    const rimMat  = makeToonMat(0xd5a866);
+    const holderMat = new THREE.MeshToonMaterial({
+      color: 0xc3e0ff,
+      gradientMap: gradientMap(),
+      transparent: true,
+      opacity: 0.55,
+    });
+
+    const tray = new THREE.Mesh(new THREE.BoxGeometry(2.85, 0.18, 0.95), trayMat);
     this.group.add(tray);
+    withOutline(tray, 1.025);
 
-    // rim
-    const rimMat = new THREE.MeshStandardMaterial({ color: 0x6b7aa3, roughness: 0.4, metalness: 0.5 });
-    const rimGeo = new THREE.BoxGeometry(2.6, 0.04, 0.04);
-    const r1 = new THREE.Mesh(rimGeo, rimMat); r1.position.set(0, 0.07, 0.4); this.group.add(r1);
-    const r2 = new THREE.Mesh(rimGeo, rimMat); r2.position.set(0, 0.07, -0.4); this.group.add(r2);
+    const rimGeo = new THREE.BoxGeometry(2.85, 0.07, 0.07);
+    for (const z of [0.46, -0.46]) {
+      const r = new THREE.Mesh(rimGeo, rimMat);
+      r.position.set(0, 0.12, z);
+      this.group.add(r);
+    }
 
-    // slot holders (3 cylinders)
     this.holders = [];
     for (let i = 0; i < this.slotCount; i++) {
-      const holderMat = new THREE.MeshStandardMaterial({
-        color: 0x60709a, roughness: 0.45, metalness: 0.35,
-        transparent: true, opacity: 0.45,
-      });
-      const holder = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.21, 0.55, 28, 1, true), holderMat);
-      holder.position.set(-0.8 + i * 0.8, 0.31, 0);
+      const holder = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.24, 0.24, 0.62, 30, 1, true),
+        holderMat
+      );
+      holder.position.set(-0.9 + i * 0.9, 0.42, 0);
       this.group.add(holder);
-      // base disc
-      const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.04, 28), rimMat);
-      disc.position.set(-0.8 + i * 0.8, 0.08, 0);
+
+      const disc = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.26, 0.26, 0.05, 30),
+        rimMat
+      );
+      disc.position.set(-0.9 + i * 0.9, 0.12, 0);
       this.group.add(disc);
+      withOutline(disc, 1.04);
+
       this.holders.push(holder);
     }
   }
 
-  getSlotLocalPos(index, stackIndex = 0) {
-    return new THREE.Vector3(-0.8 + index * 0.8, 0.18 + stackIndex * 0.18, 0);
+  getSlotLocalPos(i, stack = 0) {
+    return new THREE.Vector3(-0.9 + i * 0.9, 0.23 + stack * 0.22, 0);
   }
-
-  getSlotWorldPos(index, stackIndex = 0) {
+  getSlotWorldPos(i, stack = 0) {
     this.group.updateMatrixWorld(true);
-    return this.getSlotLocalPos(index, stackIndex).applyMatrix4(this.group.matrixWorld);
+    return this.getSlotLocalPos(i, stack).applyMatrix4(this.group.matrixWorld);
   }
-
   findSlotForColor(color) {
     for (let i = 0; i < this.slotCount; i++) {
       const s = this.slots[i];
@@ -313,7 +369,6 @@ export class SlotTray {
     for (let i = 0; i < this.slotCount; i++) if (!this.slots[i]) return i;
     return -1;
   }
-
   reserveSlot(screw) {
     const i = this.findSlotForColor(screw.color);
     if (i < 0) return -1;
@@ -321,26 +376,18 @@ export class SlotTray {
     this.slots[i].screws.push(screw);
     return i;
   }
-
   stackIndexFor(screw, slotIndex) {
     return this.slots[slotIndex].screws.indexOf(screw);
   }
-
-  checkMatch(slotIndex) {
-    const s = this.slots[slotIndex];
+  checkMatch(i) {
+    const s = this.slots[i];
     if (s && s.screws.length >= this.maxPerSlot) {
       const screws = s.screws.slice();
-      this.slots[slotIndex] = null;
+      this.slots[i] = null;
       return screws;
     }
     return null;
   }
-
-  isAllOccupied() {
-    return this.slots.every(s => s !== null);
-  }
-
-  reset() {
-    this.slots = [null, null, null];
-  }
+  isAllOccupied() { return this.slots.every(s => s !== null); }
+  reset() { this.slots = [null, null, null]; }
 }
