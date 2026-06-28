@@ -12,6 +12,20 @@ import {
 
 const _ray = new THREE.Raycaster();
 
+// Release the GPU resources owned by a mesh tree. Iterates children so
+// composite groups (the Screw is one) are fully released too.
+function _disposeMesh(root) {
+  root.traverse((o) => {
+    if (o.geometry && typeof o.geometry.dispose === 'function') {
+      o.geometry.dispose();
+    }
+    const mat = o.material;
+    if (!mat) return;
+    if (Array.isArray(mat)) for (const m of mat) m.dispose?.();
+    else mat.dispose?.();
+  });
+}
+
 export class Game {
   constructor(scene, camera, view, viewProj) {
     this.scene = scene;
@@ -41,6 +55,22 @@ export class Game {
     this._pendingCascade = false;
     this._cascadeBusyUntil = 0;
     this._timers = new Set();   // tracked setTimeout ids for cancel-on-restart
+    this._rafTokens = new Set(); // requestAnimationFrame handles for shake etc.
+
+    // Pooled resources (Codex 7.1): share one SphereGeometry for every
+    // particle, and one MeshBasicMaterial per color, so we don't churn the
+    // GPU pipeline every box-complete.
+    this._particleGeo = new THREE.SphereGeometry(0.05, 8, 6);
+    this._particleMats = new Map();
+  }
+
+  _particleMaterial(colorHex) {
+    let mat = this._particleMats.get(colorHex);
+    if (!mat) {
+      mat = new THREE.MeshBasicMaterial({ color: colorHex });
+      this._particleMats.set(colorHex, mat);
+    }
+    return mat;
   }
 
   // ---------- timer helpers (canceled on loadLevel) ----------
@@ -60,14 +90,18 @@ export class Game {
   loadLevel(idx) {
     // wipe previous level entities + DOM tokens + scheduled callbacks
     this._clearTimers();
+    this._clearRafTokens();
     for (const p of this.planks) {
       if (p.mesh.parent) p.mesh.parent.remove(p.mesh);
+      _disposeMesh(p.mesh);
     }
     for (const s of this.screws) {
       if (s.mesh.parent) s.mesh.parent.remove(s.mesh);
+      _disposeMesh(s.mesh);
     }
     for (const sp of this._particles) {
       if (sp.mesh.parent) sp.mesh.parent.remove(sp.mesh);
+      // particle geometry / material is pooled — don't dispose
     }
     this._particles = [];
     this.planks = [];
@@ -192,17 +226,21 @@ export class Game {
       }
       const k = Math.sin(t * 30) * 0.04 * (1 - t);
       screw.mesh.position.copy(orig).addScaledVector(screw.normal, k);
-      requestAnimationFrame(tick);
+      const id = requestAnimationFrame(tick);
+      this._rafTokens.add(id);
     };
     tick();
+  }
+  _clearRafTokens() {
+    for (const id of this._rafTokens) cancelAnimationFrame(id);
+    this._rafTokens.clear();
   }
 
   _burstParticles(worldPos, colorHex) {
     const count = 14;
-    const geo = new THREE.SphereGeometry(0.05, 8, 6);
-    const mat = new THREE.MeshBasicMaterial({ color: colorHex });
+    const mat = this._particleMaterial(colorHex);
     for (let i = 0; i < count; i++) {
-      const m = new THREE.Mesh(geo, mat);
+      const m = new THREE.Mesh(this._particleGeo, mat);
       m.position.copy(worldPos);
       const dir = new THREE.Vector3(
         Math.random() - 0.5,
