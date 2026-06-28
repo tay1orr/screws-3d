@@ -4,6 +4,7 @@ import { LEVELS } from './levels.js';
 import {
   CollectorState, TARGET_BOX, TARGET_BUFFER,
 } from './2026-06-28-collector-state.js';
+import { validateLevel } from './2026-06-28-level-validator.js';
 import {
   playClick, playUnscrew, playSlot, playMatch,
   playWin, playLose, playThud, playBlocked,
@@ -63,6 +64,24 @@ export class Game {
     this.state = 'playing';
 
     const level = LEVELS[this.levelIdx];
+
+    // Static check: catch malformed levels (color counts, queue/screw
+    // mismatch) before they reach the player. Logs to console but never
+    // blocks — Stage 6 polish surface, not a runtime guard.
+    const validation = validateLevel(level);
+    if (validation.errors.length) {
+      console.warn(
+        `[Level ${this.levelIdx + 1}] validation errors:`,
+        validation.errors,
+      );
+    }
+    if (validation.warnings.length) {
+      console.info(
+        `[Level ${this.levelIdx + 1}] validation warnings:`,
+        validation.warnings,
+      );
+    }
+
     const pieces = Array.isArray(level) ? level : level.pieces;
     const binQueue = Array.isArray(level) ? [] : (level.binQueue ?? []);
     this.collector.loadLevel(binQueue);
@@ -212,12 +231,15 @@ export class Game {
       } else if (e.type === 'box-slide-in') {
         // visual handled by syncFromCollector at the end
       } else if (e.type === 'auto-transfer') {
-        // The screw was sitting in a buffer slot — re-target to the new
-        // box and snap its mesh to the box position (smooth animation will
-        // come in a later stage).
+        // The screw was sitting in a buffer slot. Animate a smooth arc to
+        // the destination box. The cascade gate in update() waits on these
+        // to finish before resolving the next step, so chained completions
+        // never tear down a screw mid-flight.
         const s = this._findScrewById(e.screwId);
         if (s) {
-          s.retarget({ type: 'box', boxIndex: e.boxIndex, stackIndex: e.stackIndex });
+          s.startAutoTransfer({
+            type: 'box', boxIndex: e.boxIndex, stackIndex: e.stackIndex,
+          });
         }
       }
     }
@@ -259,15 +281,22 @@ export class Game {
       }
     }
 
-    // Resolve all chain reactions ONLY once every flying screw has settled.
-    // This avoids tearing down a box that still has screws en route.
+    // Cascade gate: resolve ONE round at a time, waiting between rounds
+    // for every animation (flight + auto-transfer) to settle. This keeps
+    // chained completions visually coherent — a box never tears down a
+    // screw that hasn't finished its arc.
     if (this._pendingCascade) {
-      const stillFlying = this.screws.some(s =>
-        s.state === 'spinning' || s.state === 'flying');
-      if (!stillFlying) {
-        this._pendingCascade = false;
-        const events = this.collector.resolveCascade();
-        this._processCascadeEvents(events);
+      const stillAnimating = this.screws.some(s =>
+        s.state === 'spinning' ||
+        s.state === 'flying' ||
+        s.state === 'autoTransferring');
+      if (!stillAnimating) {
+        const events = this.collector.resolveCascadeStep();
+        if (events.length === 0) {
+          this._pendingCascade = false;
+        } else {
+          this._processCascadeEvents(events);
+        }
       }
     }
 

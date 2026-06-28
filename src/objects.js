@@ -105,36 +105,36 @@ export class Screw {
     const dark = new THREE.MeshBasicMaterial({ color: darken(this.colorHex, 0.3) });
 
     // shaft
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.040, 0.030, 0.22, 12), metal);
-    shaft.position.y = -0.11;
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.027, 0.20, 12), metal);
+    shaft.position.y = -0.10;
     shaft.castShadow = true;
     g.add(shaft);
 
     // tip
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.030, 0.05, 10), metal);
-    tip.position.y = -0.245;
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.027, 0.045, 10), metal);
+    tip.position.y = -0.225;
     g.add(tip);
 
     // collar
-    const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.069, 0.042, 0.019, 14), metal);
+    const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.038, 0.017, 14), metal);
     collar.position.y = 0;
     g.add(collar);
 
     // head — flat plastic cap (coin shape, no dome)
-    const headR = 0.110;
-    const headH = 0.044;
+    const headR = 0.100;
+    const headH = 0.040;
     const head = new THREE.Mesh(new THREE.CylinderGeometry(headR, headR, headH, 24), headMat);
-    head.position.y = 0.022;        // top face at y = 0.044
+    head.position.y = 0.020;        // top face at y = 0.040
     head.castShadow = true;
     head.userData.isHead = true;
     g.add(head);
 
-    // Cross slot — perched just above the head's top face so it reads
-    // from any angle.
-    const slotW = 0.170;
-    const slotT = 0.016;
-    const slotZ = 0.036;
-    const slotY = 0.052;            // 0.008 above the head's top face
+    // Cross slot — perched just above the head's top face, smaller than
+    // before so it reads as a notch rather than a stamp.
+    const slotW = 0.135;
+    const slotT = 0.014;
+    const slotZ = 0.028;
+    const slotY = 0.048;            // 0.008 above the head's top face
     const s1 = new THREE.Mesh(new THREE.BoxGeometry(slotW, slotT, slotZ), dark);
     s1.position.y = slotY;
     g.add(s1);
@@ -173,6 +173,21 @@ export class Screw {
     const localPos = this.tray.getTargetLocalPos(target);
     this.mesh.position.copy(localPos);
     this.mesh.quaternion.identity();
+  }
+
+  // Smooth tween from current tray-local position to a new target slot.
+  // Used when a buffered screw's color becomes active and it auto-transfers
+  // into a box. Resets _landedHandled so game.js re-fires landing detection.
+  startAutoTransfer(target, dur = 0.30) {
+    this.state = 'autoTransferring';
+    this.target = target;
+    this.autoTransferTime = 0;
+    this.autoTransferDur = dur;
+    this.atStartPos = this.mesh.position.clone();
+    this.atEndPos = this.tray.getTargetLocalPos(target);
+    this.atMidPos = this.atStartPos.clone().lerp(this.atEndPos, 0.5);
+    this.atMidPos.y += 0.18;
+    this._landedHandled = false;
   }
 
   update(dt) {
@@ -214,6 +229,22 @@ export class Screw {
       }
       return;
     }
+    if (this.state === 'autoTransferring') {
+      this.autoTransferTime += dt;
+      const t = Math.min(this.autoTransferTime / this.autoTransferDur, 1);
+      const e = t * t * (3 - 2 * t);
+      const p01 = this.atStartPos.clone().lerp(this.atMidPos, e);
+      const p12 = this.atMidPos.clone().lerp(this.atEndPos, e);
+      this.mesh.position.copy(p01.lerp(p12, e));
+      this.mesh.rotateOnAxis(UP, dt * 8);
+      if (t >= 1) {
+        this.mesh.position.copy(this.atEndPos);
+        this.mesh.quaternion.identity();
+        this.state = 'inSlot';
+      }
+      return;
+    }
+
     if (this.state === 'clearing') {
       this.clearTime += dt;
       const t = Math.min(this.clearTime / 0.35, 1);

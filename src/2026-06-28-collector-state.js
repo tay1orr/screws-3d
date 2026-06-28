@@ -130,66 +130,76 @@ export class CollectorState {
   }
 
   /**
-   * Resolve all chain reactions caused by the last accepted screw or
-   * external state change. Returns an ordered list of events the renderer
-   * can play back:
-   *   { type: 'box-complete',  boxIndex, color, screwIds[] }
-   *   { type: 'box-slide-in',  boxIndex, color }
-   *   { type: 'auto-transfer', slotIndex, boxIndex, color, screwId, stackIndex }
+   * Run ONE round of cascade resolution: first any full box → clear + slide,
+   * then any buffered screw whose color now matches an active box →
+   * auto-transfer. Returns the events for this single round (possibly empty
+   * if the state is stable).
    *
-   * Loops until the state is stable so the renderer can animate one tick
-   * at a time without re-querying.
+   * Renderer-friendly: the caller animates the returned events, waits for
+   * the animations to settle, then calls again. This prevents a chained
+   * cascade from clobbering a screw that hasn't finished flying yet.
    */
-  resolveCascade() {
+  resolveCascadeStep() {
     const events = [];
-    let changed = true;
-    // Safety: cap iterations to avoid infinite loops on bad data
-    let guard = 0;
-    while (changed && guard++ < 1000) {
-      changed = false;
+    let changed = false;
 
-      // (a) Sweep: any full box → clear + slide next color in from queue.
-      for (let i = 0; i < this.activeBoxes.length; i++) {
-        const b = this.activeBoxes[i];
-        if (b && b.screwIds.length >= this.boxCapacity) {
-          events.push({
-            type: 'box-complete',
-            boxIndex: i,
-            color: b.color,
-            screwIds: b.screwIds.slice(),
-          });
-          const next = this.boxQueue.shift();
-          this.activeBoxes[i] = next ? { color: next, screwIds: [] } : null;
-          if (next) {
-            events.push({ type: 'box-slide-in', boxIndex: i, color: next });
-          }
-          changed = true;
+    // (a) Box completions.
+    for (let i = 0; i < this.activeBoxes.length; i++) {
+      const b = this.activeBoxes[i];
+      if (b && b.screwIds.length >= this.boxCapacity) {
+        events.push({
+          type: 'box-complete',
+          boxIndex: i,
+          color: b.color,
+          screwIds: b.screwIds.slice(),
+        });
+        const next = this.boxQueue.shift();
+        this.activeBoxes[i] = next ? { color: next, screwIds: [] } : null;
+        if (next) {
+          events.push({ type: 'box-slide-in', boxIndex: i, color: next });
         }
-      }
-
-      // (b) Sweep: any buffered screw whose color now matches an active
-      //     box → auto-transfer to that box.
-      for (let s = 0; s < this.buffer.length; s++) {
-        const entry = this.buffer[s];
-        if (!entry) continue;
-        const boxIdx = this.findBoxForColor(entry.color);
-        if (boxIdx >= 0) {
-          const box = this.activeBoxes[boxIdx];
-          box.screwIds.push(entry.screwId);
-          events.push({
-            type: 'auto-transfer',
-            slotIndex: s,
-            boxIndex: boxIdx,
-            color: entry.color,
-            screwId: entry.screwId,
-            stackIndex: box.screwIds.length - 1,
-          });
-          this.buffer[s] = null;
-          changed = true;
-        }
+        changed = true;
       }
     }
+
+    // (b) Buffer auto-transfers.
+    for (let s = 0; s < this.buffer.length; s++) {
+      const entry = this.buffer[s];
+      if (!entry) continue;
+      const boxIdx = this.findBoxForColor(entry.color);
+      if (boxIdx >= 0) {
+        const box = this.activeBoxes[boxIdx];
+        box.screwIds.push(entry.screwId);
+        events.push({
+          type: 'auto-transfer',
+          slotIndex: s,
+          boxIndex: boxIdx,
+          color: entry.color,
+          screwId: entry.screwId,
+          stackIndex: box.screwIds.length - 1,
+        });
+        this.buffer[s] = null;
+        changed = true;
+      }
+    }
+
     return events;
+  }
+
+  /**
+   * Run cascade resolution to completion in one call. Kept for the rules
+   * tests and offline simulation; the live renderer should use
+   * resolveCascadeStep so it can pace each round to its animations.
+   */
+  resolveCascade() {
+    const all = [];
+    let guard = 0;
+    while (guard++ < 1000) {
+      const round = this.resolveCascadeStep();
+      if (round.length === 0) break;
+      all.push(...round);
+    }
+    return all;
   }
 
   // ---------- diagnostics ----------
