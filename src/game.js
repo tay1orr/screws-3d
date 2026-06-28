@@ -47,14 +47,16 @@ export class Game {
     this.screws = [];
     this.levelIdx = 0;
     this.state = 'playing';
+    this.paused = false;
     this.totalScrews = 0;
     this.onStateChange = null;
     this.onCountChange = null;
 
     this._particles = [];
     this._pendingCascade = false;
+    this._lossReserved = false;
     this._cascadeBusyUntil = 0;
-    this._timers = new Set();   // tracked setTimeout ids for cancel-on-restart
+    this._timers = new Set();   // pausable timer records
     this._rafTokens = new Set(); // requestAnimationFrame handles for shake etc.
 
     // Pooled resources (Codex 7.1): share one SphereGeometry for every
@@ -75,16 +77,47 @@ export class Game {
 
   // ---------- timer helpers (canceled on loadLevel) ----------
   _setTimer(fn, ms) {
-    const id = setTimeout(() => {
-      this._timers.delete(id);
-      fn();
-    }, ms);
-    this._timers.add(id);
-    return id;
+    const timer = { fn, remaining: ms, startedAt: 0, id: null };
+    const schedule = () => {
+      timer.startedAt = performance.now();
+      timer.id = setTimeout(() => {
+        this._timers.delete(timer);
+        timer.id = null;
+        timer.fn();
+      }, timer.remaining);
+    };
+    timer.schedule = schedule;
+    this._timers.add(timer);
+    if (!this.paused) schedule();
+    return timer;
   }
   _clearTimers() {
-    for (const id of this._timers) clearTimeout(id);
+    for (const timer of this._timers) {
+      if (timer.id !== null) clearTimeout(timer.id);
+    }
     this._timers.clear();
+  }
+
+  setPaused(paused) {
+    if (this.state !== 'playing' && paused) return;
+    if (this.paused === paused) return;
+    const now = performance.now();
+    this.paused = paused;
+    if (paused) {
+      this._pausedAt = now;
+      for (const timer of this._timers) {
+        if (timer.id === null) continue;
+        clearTimeout(timer.id);
+        timer.id = null;
+        timer.remaining = Math.max(0, timer.remaining - (now - timer.startedAt));
+      }
+    } else {
+      const pauseDuration = now - (this._pausedAt ?? now);
+      this._cascadeBusyUntil += pauseDuration;
+      for (const timer of this._timers) {
+        if (timer.id === null) timer.schedule();
+      }
+    }
   }
 
   loadLevel(idx) {
@@ -108,10 +141,12 @@ export class Game {
     this.screws = [];
     this.view.reset();
     this._pendingCascade = false;
+    this._lossReserved = false;
     this._cascadeBusyUntil = 0;
 
     this.levelIdx = ((idx % LEVELS.length) + LEVELS.length) % LEVELS.length;
     this.state = 'playing';
+    this.paused = false;
 
     const level = LEVELS[this.levelIdx];
 
@@ -176,6 +211,7 @@ export class Game {
   // been reserved-full (would otherwise spill the next same-color tap).
   _isAcceptingInput() {
     if (this.state !== 'playing') return false;
+    if (this.paused || this._lossReserved) return false;
     if (this._pendingCascade) return false;
     if (performance.now() < this._cascadeBusyUntil) return false;
     for (const b of this.collector.activeBoxes) {
@@ -205,6 +241,12 @@ export class Game {
       ? { type: 'box',    boxIndex: result.boxIndex,  stackIndex: result.stackIndex }
       : { type: 'buffer', slotIndex: result.slotIndex };
 
+    // A fifth reserved buffer slot locks input immediately. Resolution still
+    // waits for the screw to land so a legitimate auto-transfer can run.
+    if (result.target === TARGET_BUFFER && this.collector.isBufferFull()) {
+      this._lossReserved = true;
+    }
+
     playUnscrew();
     screw.startUnscrew(this.viewProj, target);
     screw.plank.removeScrew(screw);
@@ -226,7 +268,10 @@ export class Game {
       }
       const k = Math.sin(t * 30) * 0.04 * (1 - t);
       screw.mesh.position.copy(orig).addScaledVector(screw.normal, k);
-      const id = requestAnimationFrame(tick);
+      const id = requestAnimationFrame(() => {
+        this._rafTokens.delete(id);
+        tick();
+      });
       this._rafTokens.add(id);
     };
     tick();
@@ -279,6 +324,7 @@ export class Game {
     for (const e of events) {
       if (e.type === 'box-complete') {
         anyMatch = true;
+        this.view.completeBox(e.boxIndex);
         for (const id of e.screwIds) {
           this.view.removeToken(id);
           const s = this._findScrewById(id);
@@ -287,7 +333,8 @@ export class Game {
           }
         }
       } else if (e.type === 'box-slide-in') {
-        this.view.slideInBox(e.boxIndex, e.color);
+        // Let the completed box leave before introducing the queued box.
+        this._setTimer(() => this.view.slideInBox(e.boxIndex, e.color), 300);
       } else if (e.type === 'auto-transfer') {
         const s = this._findScrewById(e.screwId);
         if (s) {
@@ -297,7 +344,7 @@ export class Game {
             // getBoundingClientRect returns the settled position.
             this._setTimer(() => {
               this.view.moveTokenToTarget(e.screwId, s.target);
-            }, 320);
+            }, 660);
           } else {
             this.view.moveTokenToTarget(e.screwId, s.target);
           }
@@ -305,14 +352,16 @@ export class Game {
       }
     }
     if (anyMatch) playMatch();
-    this.view.syncFromCollector(this.collector);
+    this.view.syncBuffersFromCollector(this.collector);
+    if (slidInBoxes.size === 0) this.view.syncBoxesFromCollector(this.collector);
     // Pace the next cascade step. If we deferred any token movement, the
     // gate has to wait at least slide-in + token transition.
-    const dur = slidInBoxes.size > 0 ? 700 : 360;
+    const dur = slidInBoxes.size > 0 ? 1020 : 360;
     this._cascadeBusyUntil = performance.now() + dur;
   }
 
   update(dt) {
+    if (this.paused) return;
     for (const s of this.screws) s.update(dt);
     for (const p of this.planks) p.update(dt);
 
@@ -341,6 +390,7 @@ export class Game {
         if (s.mesh.parent) s.mesh.parent.remove(s.mesh);
         s.state = 'inBin';
         this._pendingCascade = true;
+        this.view.syncBuffersFromCollector(this.collector);
       }
     }
 
@@ -354,6 +404,8 @@ export class Game {
         const events = this.collector.resolveCascadeStep();
         if (events.length === 0) {
           this._pendingCascade = false;
+          this._lossReserved = this.collector.isBufferFull();
+          this.view.syncFromCollector(this.collector);
         } else {
           this._processCascadeEvents(events);
         }
@@ -365,6 +417,7 @@ export class Game {
     this.planks = this.planks.filter(p => {
       if (p.state === 'gone') {
         if (p.mesh.parent) p.mesh.parent.remove(p.mesh);
+        _disposeMesh(p.mesh);
         return false;
       }
       return true;
@@ -378,7 +431,12 @@ export class Game {
       }
     }
 
-    this.screws = this.screws.filter(s => s.state !== 'gone');
+    this.screws = this.screws.filter(s => {
+      if (s.state !== 'gone') return true;
+      if (s.mesh.parent) s.mesh.parent.remove(s.mesh);
+      _disposeMesh(s.mesh);
+      return false;
+    });
 
     if (this._lastEmittedCount !== this.attachedScrews().length) {
       this._emitCount();

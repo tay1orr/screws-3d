@@ -72,18 +72,26 @@ const rim = new THREE.DirectionalLight(0xa0c8ff, 0.35);
 rim.position.set(-6, 3, -6);
 scene.add(rim);
 
-// ---------- Ground (grass disc + shadow) ----------
+// ---------- Floating play island + soft cloud layer ----------
 const groundGroup = new THREE.Group();
 const grassMat = new THREE.MeshToonMaterial({ color: 0x7cd790 });
-const grass = new THREE.Mesh(new THREE.CircleGeometry(8, 48), grassMat);
+const grass = new THREE.Mesh(new THREE.CircleGeometry(3.55, 64), grassMat);
 grass.rotation.x = -Math.PI / 2;
 grass.position.y = -0.301;
 grass.receiveShadow = true;
 groundGroup.add(grass);
 
-// Soft darker ring on grass (subtle rim, not a black outline)
+// Rounded cream underside makes the stage read as a floating toy island.
+const islandBase = new THREE.Mesh(
+  new THREE.CylinderGeometry(3.42, 3.0, 0.48, 64),
+  new THREE.MeshToonMaterial({ color: 0xe9d6aa })
+);
+islandBase.position.y = -0.58;
+islandBase.receiveShadow = true;
+groundGroup.add(islandBase);
+
 const ring = new THREE.Mesh(
-  new THREE.RingGeometry(7.85, 8, 60),
+  new THREE.RingGeometry(3.42, 3.55, 64),
   new THREE.MeshBasicMaterial({ color: 0x4a8a55, side: THREE.DoubleSide })
 );
 ring.rotation.x = -Math.PI / 2;
@@ -92,14 +100,33 @@ groundGroup.add(ring);
 
 // Soft shadow plane beyond grass
 const shadowPlane = new THREE.Mesh(
-  new THREE.CircleGeometry(20, 48),
-  new THREE.ShadowMaterial({ opacity: 0.28 })
+  new THREE.CircleGeometry(4.8, 64),
+  new THREE.ShadowMaterial({ opacity: 0.22 })
 );
 shadowPlane.rotation.x = -Math.PI / 2;
 shadowPlane.position.y = -0.302;
 shadowPlane.receiveShadow = true;
 groundGroup.add(shadowPlane);
 scene.add(groundGroup);
+
+const cloudMaterial = new THREE.MeshBasicMaterial({
+  color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false,
+});
+const cloudGeo = new THREE.SphereGeometry(1, 20, 12);
+for (const [x, y, z, scale] of [
+  [-8, 5.3, -12, 1.4], [8.5, 4.3, -14, 1.8], [-10, 1.8, -8, 1.1], [11, 0.7, -10, 1.3],
+]) {
+  const cloud = new THREE.Group();
+  for (const [ox, oy, s] of [[-0.9, 0, .72], [0, .18, 1], [.95, -.02, .66]]) {
+    const puff = new THREE.Mesh(cloudGeo, cloudMaterial);
+    puff.position.set(ox, oy, 0);
+    puff.scale.set(1.25 * s, .7 * s, .55 * s);
+    cloud.add(puff);
+  }
+  cloud.position.set(x, y, z);
+  cloud.scale.setScalar(scale);
+  scene.add(cloud);
+}
 
 // ---------- Controls ----------
 const controls = new OrbitControls(camera, canvas);
@@ -213,11 +240,20 @@ function handleTap(e) {
 // shift), which is handled inside the resize listener below.
 
 // ---------- Camera auto-fit ----------
-// Frame the level's attached pieces so they're fully visible under the
-// tray UI band at the top. Called on level load and on window resize.
-const FIT_PADDING = 0.18;       // 18% extra space around the model
-const UI_TOP_FRAC = 0.22;       // ~22% of view height reserved for the tray
+// Fit all eight bounds corners into the actual free screen rectangle below
+// the collector, rather than estimating the collector height as a fraction.
 const VIEW_DIR = new THREE.Vector3(0.55, 0.50, 0.95).normalize();
+const _fitCorner = new THREE.Vector3();
+
+function levelBoundsCorners(box) {
+  const result = [];
+  for (const x of [box.min.x, box.max.x]) {
+    for (const y of [box.min.y, box.max.y]) {
+      for (const z of [box.min.z, box.max.z]) result.push(new THREE.Vector3(x, y, z));
+    }
+  }
+  return result;
+}
 
 function fitCameraToLevel() {
   if (!game.planks.length) return;
@@ -232,29 +268,54 @@ function fitCameraToLevel() {
   }
   if (!any) return;
 
-  const size = box.getSize(new THREE.Vector3());
+  box.expandByScalar(0.28);
   const center = box.getCenter(new THREE.Vector3());
-
-  // Shift the camera target DOWN a touch so the house sits in the
-  // lower 2/3 of the screen, leaving room for the tray.
-  center.y -= size.y * (UI_TOP_FRAC / 2);
-
+  const corners = levelBoundsCorners(box);
+  const collectorRect = binView.root.getBoundingClientRect();
+  const safe = {
+    left: 22,
+    right: window.innerWidth - 22,
+    top: Math.max(150, collectorRect.bottom + 20),
+    bottom: window.innerHeight - Math.max(24, parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--safe-bottom')) || 24),
+  };
+  if (safe.bottom <= safe.top + 120) safe.top = Math.min(140, window.innerHeight * .25);
   const vFov = camera.fov * Math.PI / 180;
-  const effectiveVFov = vFov * (1 - UI_TOP_FRAC);
-  const aspect = window.innerWidth / window.innerHeight;
-  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
+  const desiredCenterY = (safe.top + safe.bottom) / 2;
 
-  // Distance needed to fit each axis. Z extent is rolled into Y/X via
-  // the view direction's depth component, so we just pad generously.
-  const distH = (size.y / 2) / Math.tan(effectiveVFov / 2);
-  const distW = (size.x / 2) / Math.tan(hFov / 2);
-  const distZ = (size.z / 2) / Math.tan(Math.min(effectiveVFov, hFov) / 2);
-  const dist = Math.max(distH, distW, distZ) * (1 + FIT_PADDING);
+  function placeAtDistance(distance) {
+    camera.position.copy(center).addScaledVector(VIEW_DIR, distance);
+    camera.lookAt(center);
+    camera.updateMatrixWorld(true);
+    const cameraUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion).normalize();
+    const worldPerPixel = 2 * distance * Math.tan(vFov / 2) / window.innerHeight;
+    const shift = cameraUp.multiplyScalar((desiredCenterY - window.innerHeight / 2) * worldPerPixel);
+    camera.position.add(shift);
+    controls.target.copy(center).add(shift);
+    camera.updateMatrixWorld(true);
+  }
 
-  camera.position.copy(center).addScaledVector(VIEW_DIR, dist);
-  controls.target.copy(center);
-  controls.minDistance = dist * 0.65;
-  controls.maxDistance = dist * 1.8;
+  function fits(distance) {
+    placeAtDistance(distance);
+    for (const corner of corners) {
+      _fitCorner.copy(corner).project(camera);
+      const x = (_fitCorner.x * .5 + .5) * window.innerWidth;
+      const y = (-_fitCorner.y * .5 + .5) * window.innerHeight;
+      if (x < safe.left || x > safe.right || y < safe.top || y > safe.bottom) return false;
+    }
+    return true;
+  }
+
+  let low = 2;
+  let high = 60;
+  for (let i = 0; i < 30; i++) {
+    const mid = (low + high) / 2;
+    if (fits(mid)) high = mid;
+    else low = mid;
+  }
+  const dist = high * 1.06;
+  placeAtDistance(dist);
+  controls.minDistance = dist * 0.9;
+  controls.maxDistance = dist * 1.65;
   controls.update();
 }
 
@@ -262,6 +323,7 @@ function fitCameraToLevel() {
 function loadLevelWithFit(idx) {
   game.loadLevel(idx);
   fitCameraToLevel();
+  requestAnimationFrame(fitCameraToLevel);
 }
 
 // ---------- Resize ----------
@@ -269,7 +331,7 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-  fitCameraToLevel();
+  requestAnimationFrame(fitCameraToLevel);
   // After the bin DOM has reflowed, snap every existing head token to its
   // new on-screen target position.
   binView.reflowTokens((screwId) => {
@@ -296,11 +358,19 @@ const splash = document.getElementById('splash');
 const startBtn = document.getElementById('start-btn');
 
 function openPause() {
+  if (game.state !== 'playing') return;
   pauseLevelLabel.textContent = `Level ${game.levelIdx + 1}`;
+  game.setPaused(true);
+  controls.enabled = false;
+  document.body.classList.add('game-paused');
   pausePanel.classList.remove('hidden');
 }
 function closePause() {
   pausePanel.classList.add('hidden');
+  game.setPaused(false);
+  controls.enabled = true;
+  document.body.classList.remove('game-paused');
+  clock.getDelta();
 }
 menuBtn.addEventListener('click', openPause);
 pauseResumeBtn.addEventListener('click', closePause);
@@ -329,22 +399,33 @@ game.onCountChange = (remaining, total) => {
   screwCountText.textContent = `${remaining} / ${total}`;
 };
 
+// Localized result handler. Kept separate from gameplay so restarts can
+// cancel a pending overlay instead of showing an obsolete result card.
+let overlayTimer = null;
 game.onStateChange = (state) => {
+  if (overlayTimer !== null) clearTimeout(overlayTimer);
+  overlayTimer = null;
   pauseLevelLabel.textContent = `Level ${game.levelIdx + 1}`;
   screwCountText.textContent = `${game.attachedScrews().length} / ${game.totalScrews}`;
   if (state === 'won') {
     overlayEmoji.textContent = '🎉';
-    overlayTitle.textContent = '집을 분해했어요!';
-    overlayMsg.textContent = '훌륭해요! 다음 집으로 가볼까요?';
+    overlayTitle.textContent = '집을 모두 분해했어요!';
+    overlayMsg.textContent = '완벽해요! 다음 레벨로 가볼까요?';
     overlayBtn.textContent = '다음 레벨';
-    setTimeout(() => overlay.classList.remove('hidden'), 700);
+    overlayTimer = setTimeout(() => {
+      overlayTimer = null;
+      overlay.classList.remove('hidden');
+    }, 700);
     pauseNextBtn.disabled = false;
   } else if (state === 'lost') {
-    overlayEmoji.textContent = '😵';
+    overlayEmoji.textContent = '🧰';
     overlayTitle.textContent = 'Game Over';
-    overlayMsg.textContent = '임시 보관함이 가득 찼어요. 다시 시도해보세요!';
-    overlayBtn.textContent = '다시 시도';
-    setTimeout(() => overlay.classList.remove('hidden'), 600);
+    overlayMsg.textContent = '임시 보관함이 가득 찼어요. 순서를 바꿔 다시 도전해 보세요!';
+    overlayBtn.textContent = '다시 도전';
+    overlayTimer = setTimeout(() => {
+      overlayTimer = null;
+      overlay.classList.remove('hidden');
+    }, 600);
     pauseNextBtn.disabled = true;
   } else {
     pauseNextBtn.disabled = true;
@@ -364,3 +445,18 @@ function animate() {
   requestAnimationFrame(animate);
 }
 animate();
+
+// Read-only diagnostics used by the browser verification pass.
+globalThis.__SCREWDOM_DEBUG__ = {
+  snapshot: () => ({
+    level: game.levelIdx + 1,
+    state: game.state,
+    paused: game.paused,
+    remaining: game.attachedScrews().length,
+    total: game.totalScrews,
+    buffer: game.collector.buffer.map(entry => entry?.color ?? null),
+    boxes: game.collector.activeBoxes.map(box => box
+      ? { color: box.color, count: box.screwIds.length }
+      : null),
+  }),
+};

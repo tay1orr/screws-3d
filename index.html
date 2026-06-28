@@ -1,87 +1,79 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#0d1326">
-<title>Screws 3D</title>
-<link rel="stylesheet" href="styles.css">
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#73c9f4">
+  <meta name="description" content="색깔 나사를 맞는 상자에 모아 구조물을 분해하는 3D 퍼즐 게임">
+  <title>Screwdom 3D</title>
+  <link rel="stylesheet" href="styles.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
   }
-}
-</script>
+  </script>
 </head>
 <body>
-<canvas id="canvas"></canvas>
+  <canvas id="canvas" aria-label="Screwdom 3D 게임 화면"></canvas>
+  <div id="bin-view" aria-label="나사 수집 상자와 임시 보관함"></div>
 
-<!-- DOM/SVG collection UI — replaces the 3D SlotTray. Sits at the top
-     of the viewport, sized in CSS so it's pixel-stable on every device. -->
-<div id="bin-view"></div>
-
-<div id="hud">
-  <!-- The HUD is intentionally minimal so the gameplay area is uncluttered.
-       Restart/next/home all live inside the pause panel below. -->
-  <button id="menu" class="icon-btn-sm" title="메뉴" aria-label="메뉴">
-    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-      <rect x="3" y="5"  width="18" height="2.5" rx="1" fill="currentColor"/>
-      <rect x="3" y="11" width="18" height="2.5" rx="1" fill="currentColor"/>
-      <rect x="3" y="17" width="18" height="2.5" rx="1" fill="currentColor"/>
-    </svg>
-  </button>
-
-  <div id="screw-count">
-    <div class="screw-icon" aria-hidden="true">
-      <svg viewBox="0 0 32 32" fill="none">
-        <ellipse cx="16" cy="10" rx="9" ry="5" fill="#ffd542" stroke="#2a2a3a" stroke-width="2"/>
-        <path d="M7 10 L9 22 L23 22 L25 10" fill="#ffb43a" stroke="#2a2a3a" stroke-width="2" stroke-linejoin="round"/>
-        <path d="M12 23 L13 30 L19 30 L20 23" fill="#ffd542" stroke="#2a2a3a" stroke-width="2" stroke-linejoin="round"/>
-        <line x1="12" y1="10" x2="20" y2="10" stroke="#2a2a3a" stroke-width="2" stroke-linecap="round"/>
+  <div id="hud">
+    <button id="menu" class="icon-btn-sm" title="메뉴" aria-label="메뉴 열기">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+        <rect x="3" y="5" width="18" height="2.5" rx="1" fill="currentColor"/>
+        <rect x="3" y="11" width="18" height="2.5" rx="1" fill="currentColor"/>
+        <rect x="3" y="17" width="18" height="2.5" rx="1" fill="currentColor"/>
       </svg>
+    </button>
+
+    <div id="screw-count" aria-label="남은 나사 수">
+      <div class="screw-icon" aria-hidden="true">
+        <svg viewBox="0 0 32 32" fill="none">
+          <ellipse cx="16" cy="10" rx="9" ry="5" fill="#ffd542" stroke="#2a2a3a" stroke-width="2"/>
+          <path d="M7 10 L9 22 L23 22 L25 10" fill="#ffb43a" stroke="#2a2a3a" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M12 23 L13 30 L19 30 L20 23" fill="#ffd542" stroke="#2a2a3a" stroke-width="2" stroke-linejoin="round"/>
+          <line x1="12" y1="10" x2="20" y2="10" stroke="#2a2a3a" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <span id="screw-count-text">0 / 0</span>
     </div>
-    <span id="screw-count-text">0 / 0</span>
+    <div id="hint">화면을 드래그해 돌리고, 꺼낼 수 있는 나사를 누르세요</div>
   </div>
 
-  <div id="hint">화면을 드래그하면 회전 · 나사를 탭하면 풀어요</div>
-</div>
-
-<!-- Pause panel — opens via the menu button. Restart and next live here so
-     the play area is never cluttered. -->
-<div id="pause-panel" class="hidden">
-  <div class="pause-card">
-    <h2 id="pause-level-label">Level 1</h2>
-    <button id="pause-resume"  class="primary-btn">계속하기</button>
-    <button id="pause-restart" class="secondary-btn">레벨 재시작</button>
-    <button id="pause-next"    class="secondary-btn" disabled>다음 레벨</button>
-  </div>
-</div>
-
-<!-- Result panel (win / lose). Shown only after every animation settles. -->
-<div id="overlay" class="hidden">
-  <div class="overlay-card">
-    <div id="overlay-emoji">🎉</div>
-    <h1 id="overlay-title">Level Complete!</h1>
-    <p id="overlay-msg">잘했어요!</p>
-    <button id="overlay-btn" class="primary-btn">계속</button>
-  </div>
-</div>
-
-<div id="splash">
-  <div class="splash-card">
-    <div class="splash-icon" aria-hidden="true">
-      <div class="splash-screw"></div>
-      <div class="splash-screw"></div>
-      <div class="splash-screw"></div>
+  <div id="pause-panel" class="hidden" role="dialog" aria-modal="true" aria-labelledby="pause-level-label">
+    <div class="pause-card">
+      <h2 id="pause-level-label">Level 1</h2>
+      <button id="pause-resume" class="primary-btn">계속하기</button>
+      <button id="pause-restart" class="secondary-btn">레벨 다시 시작</button>
+      <button id="pause-next" class="secondary-btn" disabled>다음 레벨</button>
     </div>
-    <h1>Screws 3D</h1>
-    <p>나사를 풀어 모든 판자를 분해하세요</p>
-    <button id="start-btn" class="primary-btn">시작하기</button>
   </div>
-</div>
 
-<script type="module" src="./src/main.js"></script>
+  <div id="overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
+    <div class="overlay-card">
+      <div id="overlay-emoji">🎉</div>
+      <h1 id="overlay-title">Level Complete!</h1>
+      <p id="overlay-msg">모든 나사를 정리했어요!</p>
+      <button id="overlay-btn" class="primary-btn">계속</button>
+    </div>
+  </div>
+
+  <div id="splash">
+    <div class="splash-card">
+      <div class="splash-icon" aria-hidden="true">
+        <div class="splash-screw"></div>
+        <div class="splash-screw"></div>
+        <div class="splash-screw"></div>
+      </div>
+      <h1>Screwdom 3D</h1>
+      <p>색깔 나사를 모아 구조물을 분해하세요</p>
+      <button id="start-btn" class="primary-btn">시작하기</button>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
 </body>
 </html>

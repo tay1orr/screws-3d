@@ -30,6 +30,7 @@ export const HOUSE = {
   chimneyTop: 0xc66b2c,
   innerFloor: 0xefc88a,
   atticBeam:  0xb38247,
+  garden:     0x8fcf68,
 };
 
 // ---------- Toon ----------
@@ -110,6 +111,15 @@ export class Screw {
     shaft.castShadow = true;
     g.add(shaft);
 
+    // Three subtle thread rings make the screw read as metal hardware while
+    // keeping the silhouette light enough for mobile rendering.
+    for (const y of [-0.065, -0.105, -0.145]) {
+      const thread = new THREE.Mesh(new THREE.TorusGeometry(0.037, 0.006, 5, 12), metal);
+      thread.rotation.x = Math.PI / 2;
+      thread.position.y = y;
+      g.add(thread);
+    }
+
     // tip
     const tip = new THREE.Mesh(new THREE.ConeGeometry(0.027, 0.045, 10), metal);
     tip.position.y = -0.225;
@@ -132,15 +142,21 @@ export class Screw {
     // Cross slot — perched just above the head's top face, smaller than
     // before so it reads as a notch rather than a stamp.
     const slotW = 0.135;
-    const slotT = 0.014;
+    const slotT = 0.003;
     const slotZ = 0.028;
-    const slotY = 0.048;            // 0.008 above the head's top face
+    const slotY = 0.0415;           // nearly flush: reads as a recessed groove
     const s1 = new THREE.Mesh(new THREE.BoxGeometry(slotW, slotT, slotZ), dark);
     s1.position.y = slotY;
     g.add(s1);
     const s2 = new THREE.Mesh(new THREE.BoxGeometry(slotZ, slotT, slotW), dark);
     s2.position.y = slotY;
     g.add(s2);
+
+    const rimMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.38 });
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(headR * 0.78, 0.006, 6, 24), rimMat);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = 0.042;
+    g.add(rim);
 
     this._headMat = headMat;
     return g;
