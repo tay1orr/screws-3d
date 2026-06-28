@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { Screw, Plank, SlotTray } from './objects.js';
 import { LEVELS } from './levels.js';
 import {
+  CollectorState, TARGET_BOX, TARGET_BUFFER,
+} from './2026-06-28-collector-state.js';
+import {
   playClick, playUnscrew, playSlot, playMatch,
   playWin, playLose, playThud, playBlocked,
 } from './audio.js';
@@ -14,20 +17,27 @@ export class Game {
     this.camera = camera;
 
     this.tray = new SlotTray();
-    // tray is a child of camera so it always sits in screen space — visible upper area
     camera.add(this.tray.group);
     this.tray.group.position.set(0, 0.85, -3.6);
     this.tray.group.scale.set(0.75, 0.75, 0.75);
 
+    // Pure rules engine: 2 active color-locked bins + 5 buffer slots + queue.
+    this.collector = new CollectorState({
+      activeBoxCount: 2,
+      boxCapacity: 3,
+      bufferCapacity: 5,
+    });
+
     this.planks = [];
     this.screws = [];
     this.levelIdx = 0;
-    this.state = 'playing'; // playing | won | lost
+    this.state = 'playing';
     this.totalScrews = 0;
     this.onStateChange = null;
     this.onCountChange = null;
 
     this._particles = [];
+    this._pendingCascade = false;
   }
 
   loadLevel(idx) {
@@ -44,8 +54,7 @@ export class Game {
     this._particles = [];
     this.planks = [];
     this.screws = [];
-    this.tray.reset();
-    this._winFiredAt = 0;
+    this._pendingCascade = false;
 
     this.levelIdx = ((idx % LEVELS.length) + LEVELS.length) % LEVELS.length;
     this.state = 'playing';
@@ -53,7 +62,8 @@ export class Game {
     const level = LEVELS[this.levelIdx];
     const pieces = Array.isArray(level) ? level : level.pieces;
     const binQueue = Array.isArray(level) ? [] : (level.binQueue ?? []);
-    this.tray.setQueue(binQueue);
+    this.collector.loadLevel(binQueue);
+    this.tray.syncFromCollector(this.collector);
 
     for (const ps of pieces) {
       const plank = new Plank(ps);
@@ -87,9 +97,6 @@ export class Game {
 
     for (const screw of this.screws) {
       if (screw.state !== 'attached') continue;
-      // Cast a ray along the outward normal looking for another plank that
-      // would block the extraction path. Small offset so we don't immediately
-      // hit the screw's own collar; small `far` so close pieces still count.
       const origin = screw.mesh.position.clone().addScaledVector(screw.normal, 0.04);
       _ray.set(origin, screw.normal);
       _ray.far = 2.5;
@@ -112,16 +119,23 @@ export class Game {
       return;
     }
 
-    const slotIdx = this.tray.reserveSlot(screw);
-    if (slotIdx < 0) {
+    // Ask the rules engine where this color can go.
+    const result = this.collector.acceptScrew(screw.color, screw.id);
+    if (!result) {
+      // Color doesn't match either active box AND buffer is full → reject.
       playBlocked();
       this._shake(screw);
       return;
     }
 
-    const stackIdx = this.tray.stackIndexFor(screw, slotIdx);
+    // Build the flight target. Boxes get a stackIndex (0..2); buffers
+    // identify by slotIndex.
+    const target = result.target === TARGET_BOX
+      ? { type: 'box',    boxIndex: result.boxIndex,  stackIndex: result.stackIndex }
+      : { type: 'buffer', slotIndex: result.slotIndex };
+
     playUnscrew();
-    screw.startUnscrew(this.tray, slotIdx, stackIdx);
+    screw.startUnscrew(this.tray, target);
     screw.plank.removeScrew(screw);
 
     if (screw.plank.state === 'falling') {
@@ -169,8 +183,51 @@ export class Game {
     }
   }
 
+  // Look up a Screw by its stable id (used when consuming cascade events).
+  _findScrewById(id) {
+    for (const s of this.screws) if (s.id === id) return s;
+    return null;
+  }
+
+  // Translate a CollectorState cascade event into the renderer.
+  _processCascadeEvents(events) {
+    if (!events?.length) return;
+    let anyMatch = false;
+    for (const e of events) {
+      if (e.type === 'box-complete') {
+        anyMatch = true;
+        for (const id of e.screwIds) {
+          const s = this._findScrewById(id);
+          if (s) s.startClear();
+        }
+        // burst at the cleared box's location
+        const worldPos = this.tray.getTargetWorldPos({
+          type: 'box', boxIndex: e.boxIndex, stackIndex: 1,
+        });
+        const colorHex = this._colorHexForName(e.color);
+        this._burstParticles(worldPos, colorHex);
+      } else if (e.type === 'box-slide-in') {
+        // visual handled by syncFromCollector at the end
+      } else if (e.type === 'auto-transfer') {
+        // The screw was sitting in a buffer slot — re-target to the new
+        // box and snap its mesh to the box position (smooth animation will
+        // come in a later stage).
+        const s = this._findScrewById(e.screwId);
+        if (s) {
+          s.retarget({ type: 'box', boxIndex: e.boxIndex, stackIndex: e.stackIndex });
+        }
+      }
+    }
+    if (anyMatch) playMatch();
+    this.tray.syncFromCollector(this.collector);
+  }
+
+  _colorHexForName(name) {
+    const s = this.screws.find(sc => sc.color === name);
+    return s ? s.colorHex : 0xffffff;
+  }
+
   update(dt) {
-    // update entities
     for (const s of this.screws) s.update(dt);
     for (const p of this.planks) p.update(dt);
 
@@ -190,24 +247,24 @@ export class Game {
       return true;
     });
 
-    // detect screws that just landed — check for match
+    // Mark cascade pending whenever a screw first reaches its destination.
     for (const s of this.screws) {
-      if (s.state === 'inSlot' && !s._matchChecked) {
-        s._matchChecked = true;
+      if (s.state === 'inSlot' && !s._landedHandled) {
+        s._landedHandled = true;
         playSlot();
-        const slot = this.tray.slots[s.slotIndex];
-        // Only match when every reserved screw in this slot has actually landed
-        const allLanded = slot && slot.screws.length >= this.tray.maxPerSlot
-          && slot.screws.every(sc => sc.state === 'inSlot');
-        if (allLanded) {
-          const matched = this.tray.checkMatch(s.slotIndex);
-          if (matched) {
-            playMatch();
-            const worldPos = this.tray.getSlotWorldPos(s.slotIndex, 1);
-            this._burstParticles(worldPos, s.colorHex);
-            for (const m of matched) m.startClear();
-          }
-        }
+        this._pendingCascade = true;
+      }
+    }
+
+    // Resolve all chain reactions ONLY once every flying screw has settled.
+    // This avoids tearing down a box that still has screws en route.
+    if (this._pendingCascade) {
+      const stillFlying = this.screws.some(s =>
+        s.state === 'spinning' || s.state === 'flying');
+      if (!stillFlying) {
+        this._pendingCascade = false;
+        const events = this.collector.resolveCascade();
+        this._processCascadeEvents(events);
       }
     }
 
@@ -222,7 +279,6 @@ export class Game {
     });
     if (this.planks.length !== planksBefore) this._updateBlocking();
 
-    // also re-check blocking when a plank starts falling
     for (const p of this.planks) {
       if (p.state === 'falling' && !p._unblocked) {
         p._unblocked = true;
@@ -238,22 +294,20 @@ export class Game {
       return true;
     });
 
-    // emit count whenever the board changes
     if (this._lastEmittedCount !== this.attachedScrews().length) {
       this._emitCount();
     }
 
     if (this.state !== 'playing') return;
 
-    // Win: every screw has left the board AND no flight animations pending.
-    // We do NOT require planks to have fallen — decorative pieces with zero
-    // screws never fall, but the level is still considered cleared.
+    // Win: every screw is gone from the board, no flight pending,
+    // collector reports cleared (no leftover in boxes/buffer/queue).
     const noAttached = this.attachedScrews().length === 0;
-    const noFlying = this.screws.every(s => s.state !== 'spinning' && s.state !== 'flying');
-    if (noAttached && noFlying && this.totalScrews > 0) {
+    const noFlying = this.screws.every(s =>
+      s.state !== 'spinning' && s.state !== 'flying');
+    if (noAttached && noFlying && this.collector.isCleared() && this.totalScrews > 0) {
       this.state = 'won';
       playWin();
-      // Cinematic flourish: any remaining decorative pieces collapse too.
       for (const p of this.planks) {
         if (p.state === 'attached') p.startFall();
       }
@@ -261,17 +315,14 @@ export class Game {
       return;
     }
 
-    // Lose: no accessible (unblocked) screw matches either active bin color
-    // i.e. player has no legal tap available — deadlock.
-    const attached = this.attachedScrews();
-    if (attached.length > 0) {
-      const accessible = attached.filter(s => !s.blocked);
-      const canTap = accessible.some(s => this.tray.findSlotForColor(s.color) >= 0);
-      if (!canTap) {
-        this.state = 'lost';
-        playLose();
-        this._emit();
-      }
+    // Lose: buffer is full AND no accessible screw can be placed.
+    // We pass the set of unblocked colors so the engine can decide.
+    const accessible = this.attachedScrews().filter(s => !s.blocked);
+    const accessibleColors = new Set(accessible.map(s => s.color));
+    if (this.collector.isStuck(accessibleColors)) {
+      this.state = 'lost';
+      playLose();
+      this._emit();
     }
   }
 

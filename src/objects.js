@@ -61,9 +61,12 @@ function withOutline(mesh, scale = 1.012, color = null) {
 const _q = new THREE.Quaternion();
 const UP = new THREE.Vector3(0, 1, 0);
 
+let _nextScrewId = 1;
+
 // ---------- Screw (smaller, lower-poly) ----------
 export class Screw {
   constructor(color, worldPos, normal) {
+    this.id = _nextScrewId++;
     this.color = color;
     this.colorHex = SCREW_COLORS[color] ?? 0xcccccc;
     this.normal = normal.clone().normalize();
@@ -73,8 +76,8 @@ export class Screw {
     this.blocked = false;
     this.plank = null;
     this.tray = null;
-    this.slotIndex = -1;
-    this.stackIndex = 0;
+    // target = { type:'box', boxIndex, stackIndex } | { type:'buffer', slotIndex }
+    this.target = null;
     this.spinTime = 0;
     this.flightTime = 0;
     this.flightDur = 0.55;
@@ -155,13 +158,20 @@ export class Screw {
     }
   }
 
-  startUnscrew(tray, slotIndex, stackIndex) {
+  startUnscrew(tray, target) {
     this.tray = tray;
-    this.slotIndex = slotIndex;
-    this.stackIndex = stackIndex;
+    this.target = target;
     this.state = 'spinning';
     this.spinTime = 0;
     this.startPos = this.mesh.position.clone();
+  }
+
+  // Used by auto-transfer: re-target a screw already in the tray.
+  retarget(target) {
+    this.target = target;
+    const localPos = this.tray.getTargetLocalPos(target);
+    this.mesh.position.copy(localPos);
+    this.mesh.quaternion.identity();
   }
 
   update(dt) {
@@ -173,7 +183,7 @@ export class Screw {
         this.state = 'flying';
         this.flightTime = 0;
         this.startPos = this.mesh.position.clone();
-        const target = this.tray.getSlotWorldPos(this.slotIndex, this.stackIndex);
+        const target = this.tray.getTargetWorldPos(this.target);
         this.targetPos = target;
         const mid = this.startPos.clone().lerp(target, 0.5);
         mid.y = Math.max(this.startPos.y, target.y) + 1.4;
@@ -185,7 +195,7 @@ export class Screw {
       this.flightTime += dt;
       const t = Math.min(this.flightTime / this.flightDur, 1);
       const e = t * t * (3 - 2 * t);
-      const liveTarget = this.tray.getSlotWorldPos(this.slotIndex, this.stackIndex);
+      const liveTarget = this.tray.getTargetWorldPos(this.target);
       this.targetPos.lerp(liveTarget, 0.25);
       const p01 = this.startPos.clone().lerp(this.midPos, e);
       const p12 = this.midPos.clone().lerp(this.targetPos, e);
@@ -196,7 +206,7 @@ export class Screw {
       this.mesh.quaternion.slerp(camQ, 0.2);
       if (t >= 1) {
         this.tray.group.attach(this.mesh);
-        const localTarget = this.tray.getSlotLocalPos(this.slotIndex, this.stackIndex);
+        const localTarget = this.tray.getTargetLocalPos(this.target);
         this.mesh.position.copy(localTarget);
         this.mesh.quaternion.identity();
         this.state = 'inSlot';
@@ -388,6 +398,8 @@ export class SlotTray {
   }
 
   updateVisuals() {
+    // Kept so existing setQueue/checkMatch shims still compile. New code path
+    // is syncFromCollector below.
     for (let i = 0; i < ACTIVE_SLOTS; i++) {
       const b = this.activeBins[i];
       const shell = this.topBinMeshes[i];
@@ -402,13 +414,46 @@ export class SlotTray {
     }
   }
 
-  getSlotLocalPos(i, stack = 0) {
-    const x = (i - 0.5) * 1.05;
-    // 3 screws line up horizontally inside the bin, slightly in front of the inner plate
-    return new THREE.Vector3(x + (stack - 1) * 0.17, 0.42, 0.28);
+  // Sync the tray's tints to a live CollectorState. Top boxes adopt the
+  // active box colors; bottom dots adopt the color of whatever screw is
+  // currently parked in each buffer slot (gray when empty).
+  syncFromCollector(collector) {
+    for (let i = 0; i < ACTIVE_SLOTS; i++) {
+      const b = collector.activeBoxes?.[i];
+      const shell = this.topBinMeshes[i];
+      if (!shell) continue;
+      shell.material.color.setHex(b ? SCREW_COLORS[b.color] : 0xc8b89a);
+    }
+    for (let j = 0; j < PREVIEW_DOTS; j++) {
+      const entry = collector.buffer?.[j];
+      const dot = this.previewDots[j];
+      if (!dot) continue;
+      dot.material.color.setHex(entry ? SCREW_COLORS[entry.color] : 0xb6c1d2);
+    }
   }
-  getSlotWorldPos(i, stack = 0) {
+
+  // ---------- target → position lookup ----------
+  // target = { type:'box', boxIndex, stackIndex } | { type:'buffer', slotIndex }
+  getTargetLocalPos(target) {
+    if (target.type === 'box') {
+      return this.getBoxLocalPos(target.boxIndex, target.stackIndex);
+    }
+    return this.getBufferLocalPos(target.slotIndex);
+  }
+  getTargetWorldPos(target) {
     this.group.updateMatrixWorld(true);
-    return this.getSlotLocalPos(i, stack).applyMatrix4(this.group.matrixWorld);
+    return this.getTargetLocalPos(target).applyMatrix4(this.group.matrixWorld);
   }
+  getBoxLocalPos(boxIndex, stackIndex = 0) {
+    const x = (boxIndex - 0.5) * 1.05;
+    return new THREE.Vector3(x + (stackIndex - 1) * 0.17, 0.42, 0.28);
+  }
+  getBufferLocalPos(slotIndex) {
+    const x = (slotIndex - 2) * 0.46;
+    return new THREE.Vector3(x, -0.07, 0.07);
+  }
+
+  // ---- legacy box-only API kept so old call sites still compile ----
+  getSlotLocalPos(i, stack = 0) { return this.getBoxLocalPos(i, stack); }
+  getSlotWorldPos(i, stack = 0) { return this.getTargetWorldPos({ type: 'box', boxIndex: i, stackIndex: stack }); }
 }

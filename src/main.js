@@ -114,8 +114,11 @@ controls.target.set(0, 1.0, 0);
 controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
 
 // ---------- Game ----------
+// IMPORTANT: do NOT call game.loadLevel() here. Loading dispatches
+// onCountChange / onStateChange callbacks that haven't been wired yet,
+// which is why the HUD used to show "0 / 0" until the first tap.
+// The initial load happens at the bottom of this file, after HUD setup.
 const game = new Game(scene, camera);
-game.loadLevel(0);
 
 // ---------- Click vs Drag ----------
 const raycaster = new THREE.Raycaster();
@@ -213,7 +216,7 @@ game.onStateChange = (state) => {
   } else if (state === 'lost') {
     overlayEmoji.textContent = '😵';
     overlayTitle.textContent = 'Game Over';
-    overlayMsg.textContent = '슬롯이 가득 찼어요. 다시 시도해보세요!';
+    overlayMsg.textContent = '임시 보관함이 가득 찼어요. 다시 시도해보세요!';
     overlayBtn.textContent = '다시 시도';
     setTimeout(() => overlay.classList.remove('hidden'), 600);
     nextBtn.disabled = true;
@@ -221,6 +224,9 @@ game.onStateChange = (state) => {
     nextBtn.disabled = true;
   }
 };
+
+// ---------- Initial level load (callbacks are now wired) ----------
+game.loadLevel(0);
 
 // ---------- Loop ----------
 const clock = new THREE.Clock();

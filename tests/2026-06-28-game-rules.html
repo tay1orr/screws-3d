@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Screwdom 3D — 규칙 엔진 인수 테스트</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #161e3a;
+    color: #fff;
+    font-family: -apple-system, "Segoe UI", "Pretendard", sans-serif;
+    padding: 24px;
+    max-width: 800px;
+    margin: 0 auto;
+    line-height: 1.5;
+  }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .sub { color: rgba(255,255,255,0.55); font-size: 14px; margin-bottom: 24px; }
+  .summary {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .summary .badge {
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-weight: 800;
+    font-size: 14px;
+  }
+  .badge.pass { background: #2ecc71; color: #0a2a1a; }
+  .badge.fail { background: #ff5252; color: #fff; }
+  .row {
+    background: rgba(255,255,255,0.04);
+    border-left: 4px solid;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    display: grid;
+    grid-template-columns: 60px 1fr auto;
+    gap: 12px;
+    align-items: center;
+  }
+  .row.pass { border-color: #2ecc71; }
+  .row.fail { border-color: #ff5252; }
+  .row .id { font-family: ui-monospace, Consolas, monospace; font-weight: 700; color: rgba(255,255,255,0.7); }
+  .row .name { font-size: 14px; }
+  .row .verdict { font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 999px; }
+  .verdict.pass { background: rgba(46,204,113,0.2); color: #2ecc71; }
+  .verdict.fail { background: rgba(255,82,82,0.2); color: #ff5252; }
+  .reason {
+    grid-column: 1 / -1;
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: rgba(255,82,82,0.1);
+    border-radius: 6px;
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 12px;
+    color: #ffb3b3;
+    white-space: pre-wrap;
+  }
+  footer {
+    margin-top: 32px;
+    color: rgba(255,255,255,0.4);
+    font-size: 12px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<h1>🔩 Screwdom 3D — 규칙 엔진 인수 테스트</h1>
+<div class="sub">
+  CollectorState (상자 2, 용량 3, 버퍼 5, 자동 이송, 연쇄) 규칙 검증.
+  3D 렌더링 없이 순수 로직만 테스트합니다.
+</div>
+
+<div class="summary" id="summary">
+  <span id="totals">실행 중…</span>
+</div>
+
+<div id="results"></div>
+
+<footer>
+  src/2026-06-28-collector-state.js · tests/2026-06-28-game-rules.js
+</footer>
+
+<script type="module">
+  import { runTests } from './2026-06-28-game-rules.js';
+
+  const results = runTests();
+  const total = results.length;
+  const passed = results.filter(r => r.pass).length;
+  const failed = total - passed;
+
+  const summary = document.getElementById('summary');
+  const totals = document.getElementById('totals');
+  totals.innerHTML = `
+    <span class="badge ${failed === 0 ? 'pass' : 'fail'}">
+      ${failed === 0 ? '✓ ALL PASS' : `✗ ${failed} FAIL`}
+    </span>
+    <span><strong>${passed}</strong> / ${total} 통과</span>
+  `;
+
+  const container = document.getElementById('results');
+  for (const r of results) {
+    const row = document.createElement('div');
+    row.className = `row ${r.pass ? 'pass' : 'fail'}`;
+    row.innerHTML = `
+      <div class="id">${r.id}</div>
+      <div class="name">${r.name}</div>
+      <div class="verdict ${r.pass ? 'pass' : 'fail'}">${r.pass ? 'PASS' : 'FAIL'}</div>
+      ${r.reason ? `<div class="reason">${r.reason}</div>` : ''}
+    `;
+    container.appendChild(row);
+  }
+</script>
+
+</body>
+</html>
