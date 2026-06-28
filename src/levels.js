@@ -60,16 +60,21 @@ const rightWall = () => ({
   color: HOUSE.wallAlt,
 });
 
+// Roof rotation note:
+//   Three.js rotates the local +Z axis by a *positive* X-angle DOWN, so for
+//   a gable to peak at the centre (z=0) we need the panel furthest in +Z
+//   (the front one) to lean +π/6 and the back panel −π/6. Previous code
+//   had these swapped, producing a V-valley instead of a roof.
 const roofA = () => ({
   size: [ROOF_W, ROOF_THICK, ROOF_LEN],
   pos:  [0, ROOF_CENTER_Y, ROOF_CENTER_Z],
-  rot:  [-ROOF_ANG, 0, 0],
+  rot:  [ROOF_ANG, 0, 0],
   color: HOUSE.roof, topColor: HOUSE.roof,
 });
 const roofB = () => ({
   size: [ROOF_W, ROOF_THICK, ROOF_LEN],
   pos:  [0, ROOF_CENTER_Y, -ROOF_CENTER_Z],
-  rot:  [ROOF_ANG, 0, 0],
+  rot:  [-ROOF_ANG, 0, 0],
   color: HOUSE.roof, topColor: HOUSE.roof,
 });
 
@@ -137,7 +142,7 @@ export const LEVELS = [
       P(roofB(),      roofScrews    ('red',   'blue',  'green')),
       P({
         size: [0.45, 0.95, 0.45],
-        pos:  [0.70, ROOF_PEAK_Y - 0.05, 0.55],
+        pos:  [0.70, ROOF_PEAK_Y + 0.28, 0.55],
         rot:  [0, 0, 0],
         color: HOUSE.chimney, topColor: HOUSE.chimneyTop,
       }, [
@@ -186,7 +191,7 @@ export const LEVELS = [
       P(roofB(),      roofScrews    ('red',   'green', 'yellow')),
       P({
         size: [0.45, 0.95, 0.45],
-        pos:  [0.70, ROOF_PEAK_Y - 0.05, 0.55],
+        pos:  [0.70, ROOF_PEAK_Y + 0.28, 0.55],
         rot:  [0, 0, 0],
         color: HOUSE.chimney, topColor: HOUSE.chimneyTop,
       }, [
@@ -237,7 +242,7 @@ export const LEVELS = [
       P(roofB(),      roofScrews    ('red',   'green', 'yellow')),
       P({
         size: [0.45, 0.95, 0.45],
-        pos:  [0.70, ROOF_PEAK_Y - 0.05, 0.55],
+        pos:  [0.70, ROOF_PEAK_Y + 0.28, 0.55],
         rot:  [0, 0, 0],
         color: HOUSE.chimney, topColor: HOUSE.chimneyTop,
       }, [

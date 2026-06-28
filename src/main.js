@@ -161,11 +161,46 @@ function handleTap(e) {
   }
 }
 
+// ---------- Tray placement (responsive) ----------
+// Stage 2 still keeps the tray as a camera child so screw flight targets
+// stay in perspective world. But the tray now rescales and repositions
+// itself per viewport so the bins never clip off the top edge on mobile
+// portrait. The proposal's full orthographic-UI split is Stage 4 territory.
+const TRAY_DISTANCE = 3.6;
+const TRAY_NATIVE_WIDTH = 2.85;
+const TRAY_NATIVE_TOP_Y = 0.84;
+
+function updateTrayForViewport() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const aspect = w / h;
+  const vFov = camera.fov * Math.PI / 180;
+  const heightAtDist = 2 * TRAY_DISTANCE * Math.tan(vFov / 2);
+  const widthAtDist = heightAtDist * aspect;
+
+  // Portrait → tray takes most of the width; landscape → comfortable inset.
+  const isPortrait = aspect < 1;
+  const widthFrac = isPortrait ? 0.78 : 0.35;
+  const desiredW = Math.min(widthAtDist * widthFrac, 3.0);
+  const scale = desiredW / TRAY_NATIVE_WIDTH;
+
+  // Anchor the top edge of the tray ~8% below the top of the camera view,
+  // regardless of aspect ratio.
+  const topMarginFrac = 0.08;
+  const topY = heightAtDist / 2 - topMarginFrac * heightAtDist;
+  const positionY = topY - TRAY_NATIVE_TOP_Y * scale;
+
+  game.tray.group.position.set(0, positionY, -TRAY_DISTANCE);
+  game.tray.group.scale.setScalar(scale);
+}
+updateTrayForViewport();
+
 // ---------- Resize ----------
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  updateTrayForViewport();
 });
 
 // ---------- HUD ----------

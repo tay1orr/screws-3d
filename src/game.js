@@ -17,6 +17,9 @@ export class Game {
     this.camera = camera;
 
     this.tray = new SlotTray();
+    // Tray sits in screen space as a camera child. Initial position is
+    // a safe default; main.js's updateTrayForViewport() recalculates it
+    // for the actual viewport (and on every resize).
     camera.add(this.tray.group);
     this.tray.group.position.set(0, 0.85, -3.6);
     this.tray.group.scale.set(0.75, 0.75, 0.75);
