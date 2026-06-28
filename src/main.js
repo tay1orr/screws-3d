@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Game } from './game.js';
-import { BinView } from './2026-06-28-bin-view.js';
+import { BinView } from './2026-06-28-bin-view.js?v=20260629b';
 import { createHeartParty } from './2026-06-28-heart-party.js';
 import { createProgressStore } from './2026-06-28-progress-store.js';
 import { playHeartParty, resumeAudio } from './audio.js';
@@ -479,6 +479,7 @@ levelPanel.addEventListener('pointerdown', (event) => {
 function openCreatorSecret() {
   creatorDate.value = '';
   creatorMessage.textContent = '';
+  creatorMessage.classList.remove('secret-message--success');
   creatorForm.classList.remove('secret-card--error');
   creatorPanel.classList.remove('hidden');
   requestAnimationFrame(() => creatorDate.focus());
@@ -495,13 +496,30 @@ creatorPanel.addEventListener('pointerdown', (event) => {
   if (event.target === creatorPanel) closeCreatorSecret();
 });
 creatorDate.addEventListener('input', () => {
-  creatorDate.value = creatorDate.value.replace(/\D/g, '').slice(0, 8);
+  creatorDate.value = creatorDate.value.replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 8);
   creatorMessage.textContent = '';
+  creatorMessage.classList.remove('secret-message--success');
 });
 creatorForm.addEventListener('submit', (event) => {
   event.preventDefault();
-  if (creatorDate.value !== '20250511') {
+  const secret = creatorDate.value.trim().toUpperCase();
+
+  if (secret === 'KSY') {
+    progress.unlockAll();
+    renderLevelCards();
+    pauseNextBtn.disabled = !progress.isUnlocked(game.levelIdx + 1);
+    creatorMessage.textContent = '모든 레벨이 열렸어요!';
+    creatorMessage.classList.add('secret-message--success');
+    window.setTimeout(() => {
+      closeCreatorSecret();
+      openLevelPanel();
+    }, 420);
+    return;
+  }
+
+  if (secret !== '20250511') {
     creatorMessage.textContent = '그 날짜가 아닌 것 같아요.';
+    creatorMessage.classList.remove('secret-message--success');
     creatorForm.classList.remove('secret-card--error');
     void creatorForm.offsetWidth;
     creatorForm.classList.add('secret-card--error');
@@ -510,6 +528,7 @@ creatorForm.addEventListener('submit', (event) => {
   }
 
   creatorMessage.textContent = '';
+  creatorMessage.classList.remove('secret-message--success');
   closeCreatorSecret();
   closePause();
   playHeartParty();

@@ -85,7 +85,7 @@ export class Screw {
     this.target = null;
     this.spinTime = 0;
     this.flightTime = 0;
-    this.flightDur = 0.55;
+    this.flightDur = 0.38;
     this.clearTime = 0;
     this.startPos = null;
     this.midPos = null;
@@ -192,7 +192,7 @@ export class Screw {
       this.spinTime += dt;
       this.mesh.rotateOnAxis(UP, dt * 26);
       this.mesh.position.addScaledVector(this.normal, dt * 0.6);
-      if (this.spinTime > 0.32) {
+      if (this.spinTime > 0.22) {
         this.state = 'flying';
         this.flightTime = 0;
         this.startPos = this.mesh.position.clone();

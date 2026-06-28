@@ -45,6 +45,11 @@ export function createProgressStore(levelCount) {
       writeState(state);
       return { hasNext: index + 1 < levelCount, unlockedIndex: state.maxUnlocked };
     },
+    unlockAll() {
+      state.maxUnlocked = Math.max(0, levelCount - 1);
+      writeState(state);
+      return { ...state, completed: [...state.completed] };
+    },
     snapshot() {
       return { ...state, completed: [...state.completed] };
     },

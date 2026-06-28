@@ -55,7 +55,6 @@ export class Game {
 
     this._particles = [];
     this._pendingCascade = false;
-    this._lossReserved = false;
     this._cascadeBusyUntil = 0;
     this._timers = new Set();   // pausable timer records
     this._rafTokens = new Set(); // requestAnimationFrame handles for shake etc.
@@ -142,7 +141,6 @@ export class Game {
     this.screws = [];
     this.view.reset();
     this._pendingCascade = false;
-    this._lossReserved = false;
     this._cascadeBusyUntil = 0;
 
     this.levelIdx = ((idx % LEVELS.length) + LEVELS.length) % LEVELS.length;
@@ -150,6 +148,14 @@ export class Game {
     this.paused = false;
 
     const level = LEVELS[this.levelIdx];
+    const rules = level.rules ?? {};
+
+    this.collector = new CollectorState({
+      activeBoxCount: rules.activeBoxCount ?? 2,
+      boxCapacity: rules.boxCapacity ?? 3,
+      bufferCapacity: rules.bufferCapacity ?? 5,
+    });
+    this.view.configure(rules);
 
     const validation = validateLevel(level);
     if (validation.errors.length) {
@@ -225,17 +231,12 @@ export class Game {
     }
   }
 
-  // Input only flows while no cascade is pending and no box has already
-  // been reserved-full (would otherwise spill the next same-color tap).
+  // Logical collector reservations are synchronous, so animation work never
+  // needs to freeze the whole board. A click is rejected only when gameplay
+  // itself is unavailable; CollectorState decides whether a destination fits.
   _isAcceptingInput() {
     if (this.state !== 'playing') return false;
-    if (this.paused || this._lossReserved) return false;
-    if (this._pendingCascade) return false;
-    if (performance.now() < this._cascadeBusyUntil) return false;
-    for (const b of this.collector.activeBoxes) {
-      if (b && b.screwIds.length >= this.collector.boxCapacity) return false;
-    }
-    return true;
+    return !this.paused;
   }
 
   trySelectScrew(screw) {
@@ -258,12 +259,6 @@ export class Game {
     const target = result.target === TARGET_BOX
       ? { type: 'box',    boxIndex: result.boxIndex,  stackIndex: result.stackIndex }
       : { type: 'buffer', slotIndex: result.slotIndex };
-
-    // A fifth reserved buffer slot locks input immediately. Resolution still
-    // waits for the screw to land so a legitimate auto-transfer can run.
-    if (result.target === TARGET_BUFFER && this.collector.isBufferFull()) {
-      this._lossReserved = true;
-    }
 
     playUnscrew();
     screw.startUnscrew(this.viewProj, target);
@@ -331,9 +326,8 @@ export class Game {
     if (!events?.length) return;
     let anyMatch = false;
 
-    // Boxes that animated in this batch — their rect is mid-animation, so
-    // any auto-transfer landing in one of them must wait for the slide-in
-    // to settle before sampling the bin's screen position.
+    // A live box immediately takes the next color while a detached ghost of
+    // the completed box exits above it. Input can continue during the swap.
     const slidInBoxes = new Set();
     for (const e of events) {
       if (e.type === 'box-slide-in') slidInBoxes.add(e.boxIndex);
@@ -351,18 +345,17 @@ export class Game {
           }
         }
       } else if (e.type === 'box-slide-in') {
-        // Let the completed box leave before introducing the queued box.
-        this._setTimer(() => this.view.slideInBox(e.boxIndex, e.color), 300);
+        this.view.slideInBox(e.boxIndex, e.color);
       } else if (e.type === 'auto-transfer') {
         const s = this._findScrewById(e.screwId);
         if (s) {
           s.target = { type: 'box', boxIndex: e.boxIndex, stackIndex: e.stackIndex };
           if (slidInBoxes.has(e.boxIndex)) {
-            // Delay so the destination box's slide-in finishes and its
-            // getBoundingClientRect returns the settled position.
+            // The slot is already active; a short delay merely lets its
+            // entrance motion settle before the buffered token joins it.
             this._setTimer(() => {
               this.view.moveTokenToTarget(e.screwId, s.target);
-            }, 660);
+            }, 180);
           } else {
             this.view.moveTokenToTarget(e.screwId, s.target);
           }
@@ -371,10 +364,9 @@ export class Game {
     }
     if (anyMatch) playMatch();
     this.view.syncBuffersFromCollector(this.collector);
-    if (slidInBoxes.size === 0) this.view.syncBoxesFromCollector(this.collector);
-    // Pace the next cascade step. If we deferred any token movement, the
-    // gate has to wait at least slide-in + token transition.
-    const dur = slidInBoxes.size > 0 ? 1020 : 360;
+    this.view.syncBoxesFromCollector(this.collector);
+    // This clock paces visual cascade rounds, but no longer gates input.
+    const dur = slidInBoxes.size > 0 ? 420 : 240;
     this._cascadeBusyUntil = performance.now() + dur;
   }
 
@@ -422,7 +414,6 @@ export class Game {
         const events = this.collector.resolveCascadeStep();
         if (events.length === 0) {
           this._pendingCascade = false;
-          this._lossReserved = this.collector.isBufferFull();
           this.view.syncFromCollector(this.collector);
         } else {
           this._processCascadeEvents(events);
@@ -481,8 +472,12 @@ export class Game {
       return;
     }
 
-    // Rule A: buffer 5/5 once the cascade has settled = immediate loss.
-    if (stable && this.collector.isBufferFull()) {
+    // A full buffer is only a loss when no currently removable screw can go
+    // directly to an active box. This keeps the last strategic move playable.
+    const accessibleColors = new Set(this.screws
+      .filter(s => s.state === 'attached' && !s.blocked)
+      .map(s => s.color));
+    if (stable && this.collector.isStuck(accessibleColors)) {
       this.state = 'lost';
       playLose();
       this._emit();

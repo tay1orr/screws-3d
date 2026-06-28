@@ -10,7 +10,7 @@ function assert(condition, message) {
 }
 
 function theoreticalSolve(level) {
-  const collector = new CollectorState({ activeBoxCount: 2, boxCapacity: 3, bufferCapacity: 5 });
+  const collector = new CollectorState(level.rules ?? { activeBoxCount: 2, boxCapacity: 3, bufferCapacity: 5 });
   collector.loadLevel(level.binQueue);
   const byColor = new Map();
   let id = 1;
@@ -58,7 +58,8 @@ for (const level of levels) {
 }
 
 assert(results[0]?.name.includes('18 screws'), '튜토리얼은 18개 나사여야 함');
-assert(results[1]?.name.includes('48 screws'), '풍차는 48개 나사여야 함');
+assert(results[1]?.name.includes('30 screws'), '풍차는 30개 나사여야 함');
+assert(WINDMILL_LEVEL.rules.activeBoxCount === 3, '풍차는 활성 상자 3개를 사용해야 함');
 
 for (const result of results) {
   console.log(`[${result.pass ? 'PASS' : 'FAIL'}] ${result.name}${result.reason ? ` — ${result.reason}` : ''}`);

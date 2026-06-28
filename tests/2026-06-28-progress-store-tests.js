@@ -48,6 +48,18 @@ test('마지막 레벨은 다음 레벨을 만들지 않는다', () => {
   assert(!store.isUnlocked(2), '범위 밖 레벨이 열림');
 });
 
+test('KSY 해금은 모든 레벨을 열고 저장한다', () => {
+  memory.clear();
+  const store = createProgressStore(7);
+  store.unlockAll();
+  for (let index = 0; index < 7; index++) {
+    assert(store.isUnlocked(index), `${index + 1}단계가 열리지 않음`);
+  }
+  const restored = createProgressStore(7);
+  assert(restored.isUnlocked(6), '새 인스턴스에서 전체 해금이 복원되지 않음');
+  assert(!restored.isCompleted(6), '해금만 했는데 완료 처리됨');
+});
+
 for (const result of results) {
   console.log(`[${result.pass ? 'PASS' : 'FAIL'}] ${result.name}${result.reason ? ` — ${result.reason}` : ''}`);
 }

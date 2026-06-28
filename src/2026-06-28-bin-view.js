@@ -7,9 +7,11 @@ const SCREW_HEX = {
   brown: '#9a5d2d', white: '#eff2f5',
 };
 
-const ACTIVE_BOX_COUNT = 2;
-const BOX_CAPACITY = 3;
-const BUFFER_COUNT = 5;
+const DEFAULT_RULES = Object.freeze({
+  activeBoxCount: 2,
+  boxCapacity: 3,
+  bufferCapacity: 5,
+});
 
 export class BinView {
   constructor(rootEl) {
@@ -20,6 +22,35 @@ export class BinView {
     this.tokens = new Map();
     this._timers = new Set();
     this._rafs = new Set();
+    this.activeBoxCount = DEFAULT_RULES.activeBoxCount;
+    this.boxCapacity = DEFAULT_RULES.boxCapacity;
+    this.bufferCapacity = DEFAULT_RULES.bufferCapacity;
+    this._build();
+  }
+
+  configure(rules = {}) {
+    const next = {
+      activeBoxCount: Math.min(3, Math.max(1, rules.activeBoxCount ?? DEFAULT_RULES.activeBoxCount)),
+      boxCapacity: Math.max(1, rules.boxCapacity ?? DEFAULT_RULES.boxCapacity),
+      bufferCapacity: Math.max(1, rules.bufferCapacity ?? DEFAULT_RULES.bufferCapacity),
+    };
+    const structureChanged = next.activeBoxCount !== this.activeBoxCount
+      || next.boxCapacity !== this.boxCapacity
+      || next.bufferCapacity !== this.bufferCapacity;
+
+    if (!structureChanged) {
+      this.reset();
+      return;
+    }
+
+    this.reset();
+    this.tokenLayer?.remove();
+    this.activeBoxCount = next.activeBoxCount;
+    this.boxCapacity = next.boxCapacity;
+    this.bufferCapacity = next.bufferCapacity;
+    this.boxes = [];
+    this.holes = [];
+    this.buffers = [];
     this._build();
   }
 
@@ -28,7 +59,8 @@ export class BinView {
     this.root.classList.add('bin-view');
     const boxRow = document.createElement('div');
     boxRow.className = 'bv-boxes';
-    for (let i = 0; i < ACTIVE_BOX_COUNT; i++) {
+    boxRow.dataset.count = String(this.activeBoxCount);
+    for (let i = 0; i < this.activeBoxCount; i++) {
       const box = document.createElement('div');
       box.className = 'bv-box bv-box--empty';
       box.dataset.boxIndex = String(i);
@@ -37,7 +69,7 @@ export class BinView {
       const holesWrap = document.createElement('div');
       holesWrap.className = 'bv-holes';
       const boxHoles = [];
-      for (let j = 0; j < BOX_CAPACITY; j++) {
+      for (let j = 0; j < this.boxCapacity; j++) {
         const hole = document.createElement('div');
         hole.className = 'bv-hole';
         hole.dataset.stackIndex = String(j);
@@ -52,7 +84,7 @@ export class BinView {
     }
     const bufferRow = document.createElement('div');
     bufferRow.className = 'bv-buffers';
-    for (let i = 0; i < BUFFER_COUNT; i++) {
+    for (let i = 0; i < this.bufferCapacity; i++) {
       const slot = document.createElement('div');
       slot.className = 'bv-buffer';
       slot.dataset.slotIndex = String(i);
@@ -88,7 +120,7 @@ export class BinView {
   }
 
   syncBoxesFromCollector(collector) {
-    for (let i = 0; i < ACTIVE_BOX_COUNT; i++) {
+    for (let i = 0; i < this.activeBoxCount; i++) {
       const state = collector.activeBoxes?.[i];
       const box = this.boxes[i];
       if (state) {
@@ -102,7 +134,7 @@ export class BinView {
   }
 
   syncBuffersFromCollector(collector) {
-    for (let i = 0; i < BUFFER_COUNT; i++) {
+    for (let i = 0; i < this.bufferCapacity; i++) {
       this.buffers[i]?.classList.toggle('bv-buffer--filled', !!collector.buffer?.[i]);
     }
   }
@@ -167,9 +199,23 @@ export class BinView {
   completeBox(boxIndex) {
     const box = this.boxes[boxIndex];
     if (!box) return;
-    box.classList.remove('bv-box--slide', 'bv-box--complete');
-    void box.offsetWidth;
-    box.classList.add('bv-box--complete');
+    // Animate a fixed-position ghost so the live box slot can immediately
+    // display and accept the next color without blocking player input.
+    const rect = box.getBoundingClientRect();
+    const ghost = box.cloneNode(true);
+    ghost.removeAttribute('data-testid');
+    ghost.classList.remove('bv-box--slide', 'bv-box--empty');
+    ghost.classList.add('bv-box--ghost', 'bv-box--complete');
+    Object.assign(ghost.style, {
+      left: `${rect.left}px`, top: `${rect.top}px`,
+      width: `${rect.width}px`, height: `${rect.height}px`,
+    });
+    document.body.appendChild(ghost);
+    const timer = setTimeout(() => {
+      this._timers.delete(timer);
+      ghost.remove();
+    }, 250);
+    this._timers.add(timer);
   }
 
   slideInBox(boxIndex, color) {
@@ -188,6 +234,7 @@ export class BinView {
     this._rafs.clear();
     for (const token of this.tokens.values()) token.remove();
     this.tokens.clear();
+    document.querySelectorAll('.bv-box--ghost').forEach(ghost => ghost.remove());
     for (const box of this.boxes) {
       box.classList.remove('bv-box--slide', 'bv-box--complete');
       box.classList.add('bv-box--empty');

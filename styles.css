@@ -49,6 +49,12 @@ body.game-paused #hint {
   display: flex;
   gap: 22px;
 }
+.bv-boxes[data-count="1"] { gap: 0; }
+.bv-boxes[data-count="3"] { gap: 14px; }
+.bv-boxes[data-count="3"] .bv-box {
+  width: clamp(68px, 20vw, 82px);
+  height: clamp(66px, 19vw, 78px);
+}
 
 .bv-box {
   --bv-color: #c8b89a;
@@ -112,7 +118,7 @@ body.game-paused #hint {
   from { transform: translateY(-32px); opacity: 0; }
   to   { transform: translateY(0);     opacity: 1; }
 }
-.bv-box--slide { animation: bvSlideIn 0.34s cubic-bezier(.18,.89,.32,1.28); }
+.bv-box--slide { animation: bvSlideIn 0.22s cubic-bezier(.18,.89,.32,1.28); }
 
 @keyframes bvComplete {
   0%   { transform: translateY(0) scale(1); opacity: 1; }
@@ -120,7 +126,13 @@ body.game-paused #hint {
   68%  { transform: translateY(-8px) scale(1.04); opacity: 1; }
   100% { transform: translateY(-30px) scale(.92); opacity: 0; }
 }
-.bv-box--complete { animation: bvComplete 0.30s ease-in forwards; }
+.bv-box--complete { animation: bvComplete 0.22s ease-in forwards; }
+.bv-box--ghost {
+  position: fixed;
+  z-index: 29;
+  pointer-events: none;
+  margin: 0;
+}
 
 /* round buffer slots */
 .bv-buffers {
@@ -163,7 +175,7 @@ body.game-paused #hint {
   scale: .4;
   opacity: 0;
   transition:
-    transform 0.32s cubic-bezier(.18,.89,.32,1.28),
+    transform 0.22s cubic-bezier(.18,.89,.32,1.28),
     opacity   0.18s linear,
     scale     0.24s cubic-bezier(.18,.89,.32,1.35);
 }
@@ -191,9 +203,9 @@ body.game-paused #hint {
   opacity: 0;
   scale: .2;
   transition:
-    transform 0.32s ease-in,
-    opacity   0.32s ease-in,
-    scale     0.32s ease-in;
+    transform 0.22s ease-in,
+    opacity   0.22s ease-in,
+    scale     0.22s ease-in;
 }
 
 /* ---------- HUD ---------- */
@@ -452,6 +464,7 @@ body.game-paused #hint {
   font-size: 13px;
   font-weight: 800;
 }
+.secret-message--success { color: #208b4e; }
 
 /* ---------- Level selection ---------- */
 #level-panel {

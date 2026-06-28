@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { HOUSE } from './objects.js';
 import { TUTORIAL_LEVEL, WINDMILL_LEVEL } from './2026-06-28-campaign-levels.js';
+import { HARBOR_HOUSE_LEVEL, SUNSET_HOUSE_LEVEL } from './2026-06-29-advanced-levels.js';
 
 // ---------- tiny helpers ----------
 const v3 = (a) => new THREE.Vector3(...a);
@@ -33,23 +34,22 @@ const ROOF_CZ     =  HALF / 2;
 const FRONT_GAP   =  0.22;          // distance the door / window sits in front of the wall
 
 // ---------- LEVEL 1: 다층 별장 ----------
-// 22 pieces, 84 screws, 6 colours (r=15, b=15, g=15, y=15, o=12, p=12).
+// 22 pieces, reduced to 42 screws after the geometry definition below.
 // Multi-layer reveals: door blocks centre front-wall screw, window frame
 // blocks the window glass screws, gable roof blocks the inner floor.
 const COTTAGE = {
   id: 'cottage-03',
   name: '다층 오두막',
   world: 1,
-  difficulty: 10,
+  difficulty: 6,
   recommendedOrder: 3,
-  description: '가려진 나사와 여러 방향 탐색을 모두 사용하는 보스형 레벨',
+  description: '굴뚝과 지붕의 지지 순서를 읽고 한 개의 상자를 계획적으로 채우는 레벨',
+  tutorial: '굴뚝 덮개부터 시작하세요. 상자가 하나뿐이라 다음 색을 미리 생각해야 해요.',
+  rules: { activeBoxCount: 1, boxCapacity: 3, bufferCapacity: 5 },
   binQueue: [
-    // 28 bins, color shares match the totals above
-    'red',    'blue',   'green',  'yellow', 'orange', 'purple',
-    'red',    'blue',   'green',  'yellow', 'orange', 'purple',
-    'red',    'blue',   'green',  'yellow', 'orange', 'purple',
-    'red',    'blue',   'green',  'yellow', 'orange', 'purple',
-    'red',    'blue',   'green',  'yellow',
+    'red', 'blue', 'green', 'yellow', 'orange', 'purple',
+    'red', 'blue', 'green', 'yellow', 'orange', 'purple',
+    'red', 'blue',
   ],
   pieces: [
     // ===== 5 deck planks =====
@@ -318,8 +318,124 @@ const COTTAGE = {
   ],
 };
 
-// Three-level campaign: tutorial board, windmill, then the cottage boss level.
-export const LEVELS = [TUTORIAL_LEVEL, WINDMILL_LEVEL, COTTAGE];
+function selectScrewsForTargets(pieces, targets) {
+  const remaining = { ...targets };
+  const selected = pieces.map(() => []);
+  const selectedIndexes = pieces.map(() => new Set());
+
+  // Every physical part keeps at least one screw, otherwise Plank would have
+  // no removal trigger and remain floating forever.
+  for (let pieceIndex = 0; pieceIndex < pieces.length; pieceIndex++) {
+    const screws = pieces[pieceIndex].screws ?? [];
+    let bestIndex = -1;
+    let bestNeed = -1;
+    for (let screwIndex = 0; screwIndex < screws.length; screwIndex++) {
+      const need = remaining[screws[screwIndex].color] ?? 0;
+      if (need > bestNeed) {
+        bestNeed = need;
+        bestIndex = screwIndex;
+      }
+    }
+    if (bestIndex < 0 || bestNeed <= 0) {
+      throw new Error(`Cottage part ${pieceIndex} cannot keep a screw within the target counts`);
+    }
+    const chosen = screws[bestIndex];
+    selected[pieceIndex].push(chosen);
+    selectedIndexes[pieceIndex].add(bestIndex);
+    remaining[chosen.color]--;
+  }
+
+  let progress = true;
+  while (progress && Object.values(remaining).some(value => value > 0)) {
+    progress = false;
+    for (let pieceIndex = 0; pieceIndex < pieces.length; pieceIndex++) {
+      const screws = pieces[pieceIndex].screws ?? [];
+      for (let screwIndex = 0; screwIndex < screws.length; screwIndex++) {
+        if (selectedIndexes[pieceIndex].has(screwIndex)) continue;
+        const candidate = screws[screwIndex];
+        if ((remaining[candidate.color] ?? 0) <= 0) continue;
+        selected[pieceIndex].push(candidate);
+        selectedIndexes[pieceIndex].add(screwIndex);
+        remaining[candidate.color]--;
+        progress = true;
+        break;
+      }
+    }
+  }
+
+  if (Object.values(remaining).some(value => value !== 0)) {
+    throw new Error(`Unable to rebalance cottage screws: ${JSON.stringify(remaining)}`);
+  }
+  return pieces.map((part, index) => ({ ...part, screws: selected[index] }));
+}
+
+COTTAGE.pieces = selectScrewsForTargets(COTTAGE.pieces, {
+  red: 9, blue: 9, green: 6, yellow: 6, orange: 6, purple: 6,
+});
+
+function cottageVariant(base, options) {
+  const mapScrewColor = color => options.screwColors[color] ?? color;
+  const mapPartColor = color => options.partColors[color] ?? color;
+  return {
+    ...base,
+    id: options.id,
+    name: options.name,
+    difficulty: options.difficulty,
+    recommendedOrder: options.order,
+    description: options.description,
+    tutorial: options.tutorial,
+    rules: { ...base.rules, activeBoxCount: options.activeBoxCount },
+    binQueue: base.binQueue.map(mapScrewColor),
+    pieces: base.pieces.map(part => ({
+      ...part,
+      color: mapPartColor(part.color),
+      topColor: mapPartColor(part.topColor),
+      blockedBy: part.blockedBy ? [...part.blockedBy] : undefined,
+      screws: (part.screws ?? []).map(item => ({
+        ...item,
+        color: mapScrewColor(item.color),
+        localPos: item.localPos.clone(),
+        normal: item.normal.clone(),
+      })),
+    })),
+  };
+}
+
+const MINT_COTTAGE = cottageVariant(COTTAGE, {
+  id: 'mint-cottage-04', name: '민트빛 오두막', difficulty: 7, order: 4, activeBoxCount: 2,
+  description: '같은 집을 새로운 색상 큐와 두 개의 상자로 다시 해석하는 변형 레벨',
+  tutorial: '익숙한 구조지만 상자 색 순서가 달라졌어요. 굴뚝부터 차근차근 풀어보세요.',
+  screwColors: { red: 'green', blue: 'purple', green: 'yellow', yellow: 'red', orange: 'blue', purple: 'orange' },
+  partColors: {
+    [HOUSE.foundation]: 0xd6e8c8, [HOUSE.wall]: 0xcdf1e4, [HOUSE.wallAlt]: 0xa9dfd0,
+    [HOUSE.trim]: 0x45b89c, [HOUSE.roof]: 0x4f9db8, [HOUSE.door]: 0x2fbea0,
+    [HOUSE.doorDark]: 0x177b72, [HOUSE.chimney]: 0xf3fff8, [HOUSE.chimneyTop]: 0x397f98,
+    [HOUSE.innerFloor]: 0xc8dfbd, [HOUSE.garden]: 0x73c47f,
+  },
+});
+
+const ROSE_COTTAGE = cottageVariant(COTTAGE, {
+  id: 'rose-cottage-05', name: '장밋빛 오두막', difficulty: 8, order: 5, activeBoxCount: 1,
+  description: '장밋빛 외관과 단일 상자 큐로 해체 순서를 더 엄격하게 요구하는 변형 레벨',
+  tutorial: '상자는 하나뿐이에요. 다음 색 세 개를 확보할 수 있는지 보고 나사를 선택하세요.',
+  screwColors: { red: 'purple', blue: 'yellow', green: 'red', yellow: 'orange', orange: 'green', purple: 'blue' },
+  partColors: {
+    [HOUSE.foundation]: 0xe5c5ad, [HOUSE.wall]: 0xffd7dc, [HOUSE.wallAlt]: 0xf3b8c7,
+    [HOUSE.trim]: 0xca668b, [HOUSE.roof]: 0x8f5b9c, [HOUSE.door]: 0xb95079,
+    [HOUSE.doorDark]: 0x783653, [HOUSE.chimney]: 0xffeef1, [HOUSE.chimneyTop]: 0x70457d,
+    [HOUSE.innerFloor]: 0xe6c1b0, [HOUSE.garden]: 0x8eb477,
+  },
+});
+
+export const LEVELS = [
+  TUTORIAL_LEVEL,
+  WINDMILL_LEVEL,
+  COTTAGE,
+  MINT_COTTAGE,
+  ROSE_COTTAGE,
+  HARBOR_HOUSE_LEVEL,
+  SUNSET_HOUSE_LEVEL,
+];
 
 export const LEVEL_SUMMARY = LEVELS.map((level, index) => ({
   index,
@@ -328,5 +444,6 @@ export const LEVEL_SUMMARY = LEVELS.map((level, index) => ({
   world: level.world ?? 1,
   difficulty: level.difficulty ?? 1,
   description: level.description ?? '',
+  boxCount: level.rules?.activeBoxCount ?? 2,
   screwCount: level.pieces.reduce((sum, piece) => sum + (piece.screws?.length ?? 0), 0),
 }));
