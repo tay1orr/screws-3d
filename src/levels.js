@@ -1,9 +1,8 @@
 import * as THREE from 'three';
 import { HOUSE } from './objects.js';
 
+// ---------- tiny helpers ----------
 const v3 = (a) => new THREE.Vector3(...a);
-const eu = (a) => new THREE.Euler(...a);
-
 function s(color, local, normal = [0, 1, 0]) {
   return { color, localPos: v3(local), normal: v3(normal) };
 }
@@ -11,266 +10,301 @@ function P(spec, screws = []) {
   return { ...spec, screws };
 }
 
-// ---------- House geometry constants ----------
-const FOUND_Y = -0.15;
-const FOUND_H = 0.30;
-const WALL_H  = 1.6;
-const WALL_W  = 3.0;
-const WALL_T  = 0.18;
-const HALF    = WALL_W / 2;
-const WALL_Y  = FOUND_Y + FOUND_H/2 + WALL_H/2;
-const WALL_TOP = WALL_Y + WALL_H/2;
-const SIDE_DEPTH = WALL_W - WALL_T * 2;
+// ---------- house geometry ----------
+const DECK_Y      = -0.10;
+const DECK_H      =  0.20;     // top sits at y = 0
+const WALL_W      =  3.00;
+const WALL_T      =  0.18;
+const WALL_H      =  1.60;
+const WALL_Y      =  WALL_H / 2;
+const HALF        =  WALL_W / 2;
+const SIDE_DEPTH  =  WALL_W - WALL_T * 2;
 
-const ROOF_ANG = Math.PI / 6;
-const ROOF_LEN = HALF / Math.cos(ROOF_ANG) + 0.18;
-const ROOF_THICK = 0.18;
-const ROOF_W = WALL_W + 0.6;
-const ROOF_PEAK_Y = WALL_TOP + HALF * Math.tan(ROOF_ANG);
-const ROOF_CENTER_Y = (WALL_TOP + ROOF_PEAK_Y) / 2;
-const ROOF_CENTER_Z = HALF / 2;
+// Gable roof
+const ROOF_ANG    =  Math.PI / 6;
+const ROOF_LEN    =  HALF / Math.cos(ROOF_ANG) + 0.18;
+const ROOF_THICK  =  0.18;
+const ROOF_W      =  WALL_W + 0.6;
+const ROOF_PEAK_Y =  WALL_H + HALF * Math.tan(ROOF_ANG);
+const ROOF_CY     =  (WALL_H + ROOF_PEAK_Y) / 2;
+const ROOF_CZ     =  HALF / 2;
 
-const FRONT_GAP = 0.22;
+const FRONT_GAP   =  0.22;          // distance the door / window sits in front of the wall
 
-// ---------- Piece factories ----------
-const foundation = () => ({
-  size: [WALL_W + 0.6, FOUND_H, WALL_W + 0.6],
-  pos:  [0, FOUND_Y, 0], rot: [0, 0, 0],
-  color: HOUSE.foundation, topColor: HOUSE.foundation,
-});
+// ---------- LEVEL 1: 다층 별장 ----------
+// 22 pieces, 84 screws, 6 colours (r=15, b=15, g=15, y=15, o=12, p=12).
+// Multi-layer reveals: door blocks centre front-wall screw, window frame
+// blocks the window glass screws, gable roof blocks the inner floor.
+const COTTAGE = {
+  binQueue: [
+    // 28 bins, color shares match the totals above
+    'red',    'blue',   'green',  'yellow', 'orange', 'purple',
+    'red',    'blue',   'green',  'yellow', 'orange', 'purple',
+    'red',    'blue',   'green',  'yellow', 'orange', 'purple',
+    'red',    'blue',   'green',  'yellow', 'orange', 'purple',
+    'red',    'blue',   'green',  'yellow',
+  ],
+  pieces: [
+    // ===== 5 deck planks =====
+    P({
+      size: [0.62, DECK_H, 3.40],
+      pos:  [-1.36, DECK_Y, 0], rot: [0, 0, 0],
+      color: HOUSE.foundation,
+    }, [
+      s('red',   [0, DECK_H/2 + 0.01,  1.55]),
+      s('blue',  [0, DECK_H/2 + 0.01,  0.00]),
+      s('green', [0, DECK_H/2 + 0.01, -1.55]),
+    ]),
+    P({
+      size: [0.62, DECK_H, 3.40],
+      pos:  [-0.68, DECK_Y, 0], rot: [0, 0, 0],
+      color: HOUSE.foundation,
+    }, [
+      s('yellow', [0, DECK_H/2 + 0.01,  1.55]),
+      s('orange', [0, DECK_H/2 + 0.01,  0.00]),
+      s('purple', [0, DECK_H/2 + 0.01, -1.55]),
+    ]),
+    P({
+      size: [0.62, DECK_H, 3.40],
+      pos:  [ 0.00, DECK_Y, 0], rot: [0, 0, 0],
+      color: HOUSE.foundation,
+    }, [
+      s('red',   [0, DECK_H/2 + 0.01,  1.55]),
+      s('blue',  [0, DECK_H/2 + 0.01,  0.00]),
+      s('green', [0, DECK_H/2 + 0.01, -1.55]),
+    ]),
+    P({
+      size: [0.62, DECK_H, 3.40],
+      pos:  [ 0.68, DECK_Y, 0], rot: [0, 0, 0],
+      color: HOUSE.foundation,
+    }, [
+      s('yellow', [0, DECK_H/2 + 0.01,  1.55]),
+      s('orange', [0, DECK_H/2 + 0.01,  0.00]),
+      s('purple', [0, DECK_H/2 + 0.01, -1.55]),
+    ]),
+    P({
+      size: [0.62, DECK_H, 3.40],
+      pos:  [ 1.36, DECK_Y, 0], rot: [0, 0, 0],
+      color: HOUSE.foundation,
+    }, [
+      s('red',   [0, DECK_H/2 + 0.01,  1.55]),
+      s('blue',  [0, DECK_H/2 + 0.01,  0.00]),
+      s('green', [0, DECK_H/2 + 0.01, -1.55]),
+    ]),
 
-const frontWall = () => ({
-  size: [WALL_W, WALL_H, WALL_T],
-  pos:  [0, WALL_Y, HALF], rot: [0, 0, 0],
-  color: HOUSE.wall,
-});
-const backWall = () => ({
-  size: [WALL_W, WALL_H, WALL_T],
-  pos:  [0, WALL_Y, -HALF], rot: [0, 0, 0],
-  color: HOUSE.wall,
-});
-const leftWall = () => ({
-  size: [WALL_T, WALL_H, SIDE_DEPTH],
-  pos:  [-HALF, WALL_Y, 0], rot: [0, 0, 0],
-  color: HOUSE.wallAlt,
-});
-const rightWall = () => ({
-  size: [WALL_T, WALL_H, SIDE_DEPTH],
-  pos:  [HALF, WALL_Y, 0], rot: [0, 0, 0],
-  color: HOUSE.wallAlt,
-});
+    // ===== 4 walls (6 screws each) =====
+    // Front wall — the middle-lower screw is positioned inside the door's
+    // x/y range so the door blocks it.
+    P({
+      size: [WALL_W, WALL_H, WALL_T],
+      pos:  [0, WALL_Y, HALF], rot: [0, 0, 0],
+      color: HOUSE.wall,
+    }, [
+      s('red',    [-1.15, 0.50, WALL_T/2 + 0.01], [0, 0, 1]),
+      s('blue',   [ 1.15, 0.50, WALL_T/2 + 0.01], [0, 0, 1]),
+      s('green',  [-1.15,-0.55, WALL_T/2 + 0.01], [0, 0, 1]),
+      s('yellow', [ 1.15,-0.55, WALL_T/2 + 0.01], [0, 0, 1]),
+      s('orange', [ 0.00, 0.65, WALL_T/2 + 0.01], [0, 0, 1]),
+      s('purple', [ 0.00,-0.40, WALL_T/2 + 0.01], [0, 0, 1]),  // BLOCKED by door
+    ]),
+    // Back wall
+    P({
+      size: [WALL_W, WALL_H, WALL_T],
+      pos:  [0, WALL_Y, -HALF], rot: [0, 0, 0],
+      color: HOUSE.wall,
+    }, [
+      s('red',    [-1.15, 0.50, -WALL_T/2 - 0.01], [0, 0, -1]),
+      s('blue',   [ 1.15, 0.50, -WALL_T/2 - 0.01], [0, 0, -1]),
+      s('green',  [-1.15,-0.55, -WALL_T/2 - 0.01], [0, 0, -1]),
+      s('yellow', [ 1.15,-0.55, -WALL_T/2 - 0.01], [0, 0, -1]),
+      s('orange', [ 0.00, 0.65, -WALL_T/2 - 0.01], [0, 0, -1]),
+      s('purple', [ 0.00,-0.40, -WALL_T/2 - 0.01], [0, 0, -1]),
+    ]),
+    // Left wall
+    P({
+      size: [WALL_T, WALL_H, SIDE_DEPTH],
+      pos:  [-HALF, WALL_Y, 0], rot: [0, 0, 0],
+      color: HOUSE.wallAlt,
+    }, [
+      s('red',    [-WALL_T/2 - 0.01,  0.50, -1.0], [-1, 0, 0]),
+      s('blue',   [-WALL_T/2 - 0.01,  0.50,  1.0], [-1, 0, 0]),
+      s('green',  [-WALL_T/2 - 0.01, -0.55, -1.0], [-1, 0, 0]),
+      s('yellow', [-WALL_T/2 - 0.01, -0.55,  1.0], [-1, 0, 0]),
+      s('orange', [-WALL_T/2 - 0.01,  0.65,  0.0], [-1, 0, 0]),
+      s('purple', [-WALL_T/2 - 0.01, -0.40,  0.0], [-1, 0, 0]),
+    ]),
+    // Right wall
+    P({
+      size: [WALL_T, WALL_H, SIDE_DEPTH],
+      pos:  [ HALF, WALL_Y, 0], rot: [0, 0, 0],
+      color: HOUSE.wallAlt,
+    }, [
+      s('red',    [WALL_T/2 + 0.01,  0.50, -1.0], [1, 0, 0]),
+      s('blue',   [WALL_T/2 + 0.01,  0.50,  1.0], [1, 0, 0]),
+      s('green',  [WALL_T/2 + 0.01, -0.55, -1.0], [1, 0, 0]),
+      s('yellow', [WALL_T/2 + 0.01, -0.55,  1.0], [1, 0, 0]),
+      s('orange', [WALL_T/2 + 0.01,  0.65,  0.0], [1, 0, 0]),
+      s('purple', [WALL_T/2 + 0.01, -0.40,  0.0], [1, 0, 0]),
+    ]),
 
-// Roof rotation note:
-//   Three.js rotates the local +Z axis by a *positive* X-angle DOWN, so for
-//   a gable to peak at the centre (z=0) we need the panel furthest in +Z
-//   (the front one) to lean +π/6 and the back panel −π/6. Previous code
-//   had these swapped, producing a V-valley instead of a roof.
-const roofA = () => ({
-  size: [ROOF_W, ROOF_THICK, ROOF_LEN],
-  pos:  [0, ROOF_CENTER_Y, ROOF_CENTER_Z],
-  rot:  [ROOF_ANG, 0, 0],
-  color: HOUSE.roof, topColor: HOUSE.roof,
-});
-const roofB = () => ({
-  size: [ROOF_W, ROOF_THICK, ROOF_LEN],
-  pos:  [0, ROOF_CENTER_Y, -ROOF_CENTER_Z],
-  rot:  [-ROOF_ANG, 0, 0],
-  color: HOUSE.roof, topColor: HOUSE.roof,
-});
+    // ===== 4 wall trim strips (decorative bands on outside) =====
+    P({
+      size: [WALL_W, 0.12, 0.05],
+      pos:  [0, 1.30, HALF + 0.05], rot: [0, 0, 0],
+      color: HOUSE.trim,
+    }, [
+      s('red',  [-0.80, 0, 0.03], [0, 0, 1]),
+      s('blue', [ 0.80, 0, 0.03], [0, 0, 1]),
+    ]),
+    P({
+      size: [WALL_W, 0.12, 0.05],
+      pos:  [0, 1.30, -HALF - 0.05], rot: [0, 0, 0],
+      color: HOUSE.trim,
+    }, [
+      s('green',  [-0.80, 0, -0.03], [0, 0, -1]),
+      s('yellow', [ 0.80, 0, -0.03], [0, 0, -1]),
+    ]),
+    P({
+      size: [0.05, 0.12, SIDE_DEPTH],
+      pos:  [-HALF - 0.05, 1.30, 0], rot: [0, 0, 0],
+      color: HOUSE.trim,
+    }, [
+      s('orange', [-0.03, 0, -0.80], [-1, 0, 0]),
+      s('purple', [-0.03, 0,  0.80], [-1, 0, 0]),
+    ]),
+    P({
+      size: [0.05, 0.12, SIDE_DEPTH],
+      pos:  [ HALF + 0.05, 1.30, 0], rot: [0, 0, 0],
+      color: HOUSE.trim,
+    }, [
+      s('red',    [0.03, 0, -0.80], [1, 0, 0]),
+      s('purple', [0.03, 0,  0.80], [1, 0, 0]),
+    ]),
 
-const innerFloor = () => ({
-  // sits just above the foundation, inside the walls; revealed once the roof is gone
-  size: [2.0, 0.08, 2.0],
-  pos:  [0, 0.05, 0], rot: [0, 0, 0],
-  color: HOUSE.innerFloor, topColor: HOUSE.innerFloor,
-});
+    // ===== gable roof (2 panels) =====
+    P({
+      size: [ROOF_W, ROOF_THICK, ROOF_LEN],
+      pos:  [0, ROOF_CY, ROOF_CZ],
+      rot:  [ROOF_ANG, 0, 0],
+      color: HOUSE.roof,
+      topColor: HOUSE.roof,
+    }, [
+      s('red',    [-1.30, ROOF_THICK/2 + 0.01,  0.30]),
+      s('blue',   [-0.30, ROOF_THICK/2 + 0.01, -0.10]),
+      s('green',  [ 0.30, ROOF_THICK/2 + 0.01, -0.10]),
+      s('yellow', [ 1.30, ROOF_THICK/2 + 0.01,  0.30]),
+      s('orange', [ 0.00, ROOF_THICK/2 + 0.01,  0.50]),
+    ]),
+    P({
+      size: [ROOF_W, ROOF_THICK, ROOF_LEN],
+      pos:  [0, ROOF_CY, -ROOF_CZ],
+      rot:  [-ROOF_ANG, 0, 0],
+      color: HOUSE.roof,
+      topColor: HOUSE.roof,
+    }, [
+      s('blue',   [-1.30, ROOF_THICK/2 + 0.01,  0.30]),
+      s('green',  [-0.30, ROOF_THICK/2 + 0.01, -0.10]),
+      s('yellow', [ 0.30, ROOF_THICK/2 + 0.01, -0.10]),
+      s('orange', [ 1.30, ROOF_THICK/2 + 0.01,  0.30]),
+      s('purple', [ 0.00, ROOF_THICK/2 + 0.01,  0.50]),
+    ]),
 
-// ---------- Standard screw layouts ----------
-const wallScrewsX = (xSign, c1, c2, c3) => [
-  s(c1, [xSign * (WALL_T/2 + 0.01), 0.3, -0.85], [xSign, 0, 0]),
-  s(c2, [xSign * (WALL_T/2 + 0.01),-0.3,  0.00], [xSign, 0, 0]),
-  s(c3, [xSign * (WALL_T/2 + 0.01), 0.3,  0.85], [xSign, 0, 0]),
-];
+    // ===== chimney (body + cap) =====
+    // Body sits beside the ridge. Side screws so the cap (decorative) doesn't
+    // block them — the cap is just a visual flourish that falls on its own.
+    P({
+      size: [0.42, 0.95, 0.42],
+      pos:  [0.85, ROOF_PEAK_Y + 0.40, 0.55],
+      rot:  [0, 0, 0],
+      color: HOUSE.chimney,
+    }, [
+      s('red',    [ 0.22, -0.10,  0.00], [ 1, 0, 0]),
+      s('blue',   [-0.22, -0.10,  0.00], [-1, 0, 0]),
+      s('green',  [ 0.00, -0.10,  0.22], [ 0, 0, 1]),
+      s('yellow', [ 0.00, -0.10, -0.22], [ 0, 0,-1]),
+      s('purple', [ 0.00,  0.25,  0.22], [ 0, 0, 1]),
+    ]),
+    P({
+      size: [0.58, 0.12, 0.58],
+      pos:  [0.85, ROOF_PEAK_Y + 0.95, 0.55],
+      rot:  [0, 0, 0],
+      color: HOUSE.chimneyTop,
+    }, [
+      s('red',    [-0.18, 0.07,  0.00]),
+      s('yellow', [ 0.18, 0.07,  0.00]),
+      s('purple', [ 0.00, 0.07, -0.18]),
+    ]),
 
-// Front wall: 3 screws, the MIDDLE one is positioned to be blocked by the door.
-const frontWallScrews = (cLeft, cMidBlocked, cRight) => [
-  s(cLeft,        [-1.05, 0.30, WALL_T/2 + 0.01], [0, 0, 1]),
-  s(cMidBlocked,  [ 0.00,-0.35, WALL_T/2 + 0.01], [0, 0, 1]),
-  s(cRight,       [ 1.05, 0.30, WALL_T/2 + 0.01], [0, 0, 1]),
-];
-const backWallScrews = (c1, c2, c3) => [
-  s(c1, [-1.05, 0.30, -WALL_T/2 - 0.01], [0, 0, -1]),
-  s(c2, [ 0.00,-0.30, -WALL_T/2 - 0.01], [0, 0, -1]),
-  s(c3, [ 1.05, 0.30, -WALL_T/2 - 0.01], [0, 0, -1]),
-];
-const roofScrews = (c1, c2, c3) => [
-  s(c1, [-1.10, ROOF_THICK/2 + 0.01,  0.25], [0, 1, 0]),
-  s(c2, [ 0.00, ROOF_THICK/2 + 0.01, -0.25], [0, 1, 0]),
-  s(c3, [ 1.10, ROOF_THICK/2 + 0.01,  0.25], [0, 1, 0]),
-];
-const floorScrews = (c1, c2, c3) => [
-  s(c1, [-0.75, 0.04 + 0.01,  0.6], [0, 1, 0]),
-  s(c2, [ 0.75, 0.04 + 0.01,  0.0], [0, 1, 0]),
-  s(c3, [ 0.00, 0.04 + 0.01, -0.6], [0, 1, 0]),
-];
+    // ===== door =====
+    // The middle-lower front wall screw lies inside this volume → it's
+    // blocked until the door's own 4 screws come out.
+    P({
+      size: [0.62, 1.02, 0.08],
+      pos:  [0, 0.40, HALF + FRONT_GAP],
+      rot:  [0, 0, 0],
+      color: HOUSE.door,
+      topColor: HOUSE.doorDark,
+    }, [
+      s('blue',   [-0.20, 0.30, 0.05], [0, 0, 1]),
+      s('green',  [ 0.20, 0.30, 0.05], [0, 0, 1]),
+      s('yellow', [-0.20,-0.30, 0.05], [0, 0, 1]),
+      s('orange', [ 0.20,-0.30, 0.05], [0, 0, 1]),
+    ]),
 
-// ---------- LEVELS ----------
-// Each level provides:
-//   binQueue: ordered list of colors. First 2 entries become the active bins,
-//             the rest queue up. When a bin fills (3 same-color screws), the
-//             next queued color slides in.
-//   pieces:   3D pieces with screws.
-// Total screws MUST equal binQueue.length * 3, and each color count must equal
-// (occurrences in binQueue) * 3.
-export const LEVELS = [
+    // ===== window (frame + glass) =====
+    // The frame is in front of the glass — its 3 glass screws are blocked
+    // until the frame comes off.
+    P({
+      size: [0.62, 0.50, 0.08],
+      pos:  [0, 1.18, HALF + FRONT_GAP],
+      rot:  [0, 0, 0],
+      color: HOUSE.windowFrame,
+      topColor: HOUSE.doorDark,
+    }, [
+      s('red',    [-0.22, 0.16, 0.05], [0, 0, 1]),
+      s('blue',   [ 0.22, 0.16, 0.05], [0, 0, 1]),
+      s('purple', [ 0.00,-0.18, 0.05], [0, 0, 1]),
+    ]),
+    P({
+      size: [0.44, 0.34, 0.04],
+      pos:  [0, 1.18, HALF + FRONT_GAP - 0.07],
+      rot:  [0, 0, 0],
+      color: HOUSE.window,
+      topColor: HOUSE.windowFrame,
+    }, [
+      s('green',  [-0.14, 0, 0.03], [0, 0, 1]),
+      s('yellow', [ 0.14, 0, 0.03], [0, 0, 1]),
+      s('orange', [ 0.00, 0, 0.03], [0, 0, 1]),
+    ]),
 
-  // ============ LEVEL 1: 작은 집 (30 screws, 5 colors, 10 bins) ============
-  // Each color × 6 screws → 2 bins per color in queue.
-  // Blocking: door blocks center front wall screw; roof blocks inner floor.
-  {
-    binQueue: [
-      'red', 'blue', 'green', 'yellow', 'orange',
-      'red', 'blue', 'green', 'yellow', 'orange',
-    ],
-    pieces: [
-      P(foundation()),  // decorative, 0 screws
-      P(frontWall(),  frontWallScrews('red',   'blue',  'green')),
-      P(backWall(),   backWallScrews ('red',   'blue',  'green')),
-      P(leftWall(),   wallScrewsX(-1, 'yellow','orange','red')),
-      P(rightWall(),  wallScrewsX( 1, 'yellow','orange','blue')),
-      P(roofA(),      roofScrews    ('yellow','orange','green')),
-      P(roofB(),      roofScrews    ('red',   'blue',  'green')),
-      P({
-        size: [0.45, 0.95, 0.45],
-        pos:  [0.70, ROOF_PEAK_Y + 0.28, 0.55],
-        rot:  [0, 0, 0],
-        color: HOUSE.chimney, topColor: HOUSE.chimneyTop,
-      }, [
-        s('yellow', [-0.13, 0.49,  0.13]),
-        s('orange', [ 0.13, 0.49, -0.13]),
-        s('red',    [-0.13, 0.49, -0.13]),
-      ]),
-      P({
-        size: [0.7, 1.1, 0.10],
-        pos:  [0, 0.40, HALF + FRONT_GAP],
-        rot:  [0, 0, 0],
-        color: HOUSE.door, topColor: HOUSE.doorDark,
-      }, [
-        s('blue',   [-0.22, 0.30, 0.06], [0, 0, 1]),
-        s('green',  [ 0.22, 0.30, 0.06], [0, 0, 1]),
-        s('yellow', [ 0.00,-0.40, 0.06], [0, 0, 1]),
-      ]),
-      P({
-        size: [0.6, 0.5, 0.08],
-        pos:  [0, 1.15, HALF + FRONT_GAP - 0.02],
-        rot:  [0, 0, 0],
-        color: HOUSE.window, topColor: HOUSE.windowFrame,
-      }, [
-        s('red',    [-0.18, 0.13, 0.05], [0, 0, 1]),
-        s('orange', [ 0.18, 0.13, 0.05], [0, 0, 1]),
-        s('blue',   [ 0.00,-0.13, 0.05], [0, 0, 1]),
-      ]),
-      P(innerFloor(), floorScrews('green', 'yellow', 'orange')),
-    ],
-  },
+    // ===== inner floor (visible only after both roof panels come down) =====
+    P({
+      size: [2.60, 0.10, 2.60],
+      pos:  [0, 0.07, 0], rot: [0, 0, 0],
+      color: HOUSE.innerFloor,
+      topColor: HOUSE.innerFloor,
+    }, [
+      s('red',    [-0.90, 0.06,  0.80]),
+      s('blue',   [ 0.90, 0.06,  0.80]),
+      s('green',  [-0.90, 0.06, -0.80]),
+      s('yellow', [ 0.90, 0.06, -0.80]),
+      s('orange', [ 0.00, 0.06,  0.50]),
+      s('yellow', [ 0.00, 0.06, -0.50]),
+    ]),
 
-  // ============ LEVEL 2: 6 colors (30 screws, r=6 b=6 g=6 y=6 o=3 p=3) ============
-  {
-    binQueue: [
-      'red', 'blue', 'green', 'yellow',
-      'red', 'blue', 'green', 'yellow',
-      'orange', 'purple',
-    ],
-    pieces: [
-      P(foundation()),
-      P(frontWall(),  frontWallScrews('red',   'blue',  'green')),
-      P(backWall(),   backWallScrews ('red',   'blue',  'green')),
-      P(leftWall(),   wallScrewsX(-1, 'red',   'blue',  'yellow')),
-      P(rightWall(),  wallScrewsX( 1, 'red',   'blue',  'yellow')),
-      P(roofA(),      roofScrews    ('red',   'green', 'yellow')),
-      P(roofB(),      roofScrews    ('red',   'green', 'yellow')),
-      P({
-        size: [0.45, 0.95, 0.45],
-        pos:  [0.70, ROOF_PEAK_Y + 0.28, 0.55],
-        rot:  [0, 0, 0],
-        color: HOUSE.chimney, topColor: HOUSE.chimneyTop,
-      }, [
-        s('blue',   [-0.13, 0.49,  0.13]),
-        s('green',  [ 0.13, 0.49, -0.13]),
-        s('orange', [-0.13, 0.49, -0.13]),
-      ]),
-      P({
-        size: [0.7, 1.1, 0.10],
-        pos:  [0, 0.40, HALF + FRONT_GAP],
-        rot:  [0, 0, 0],
-        color: HOUSE.door, topColor: HOUSE.doorDark,
-      }, [
-        s('blue',   [-0.22, 0.30, 0.06], [0, 0, 1]),
-        s('green',  [ 0.22, 0.30, 0.06], [0, 0, 1]),
-        s('purple', [ 0.00,-0.40, 0.06], [0, 0, 1]),
-      ]),
-      P({
-        size: [0.6, 0.5, 0.08],
-        pos:  [0, 1.15, HALF + FRONT_GAP - 0.02],
-        rot:  [0, 0, 0],
-        color: HOUSE.window, topColor: HOUSE.windowFrame,
-      }, [
-        s('yellow', [-0.18, 0.13, 0.05], [0, 0, 1]),
-        s('orange', [ 0.18, 0.13, 0.05], [0, 0, 1]),
-        s('purple', [ 0.00,-0.13, 0.05], [0, 0, 1]),
-      ]),
-      P(innerFloor(), floorScrews('yellow', 'orange', 'purple')),
-    ],
-  },
+    // ===== garden planter (decorative, always accessible) =====
+    P({
+      size: [0.55, 0.32, 0.55],
+      pos:  [-2.15, 0.06, 1.05], rot: [0, 0, 0],
+      color: HOUSE.garden,
+    }, [
+      s('red',   [-0.13, 0.18,  0.13]),
+      s('blue',  [ 0.13, 0.18,  0.13]),
+      s('green', [ 0.00, 0.18, -0.13]),
+    ]),
+  ],
+};
 
-  // ============ LEVEL 3: same skeleton, harder queue order ============
-  // Queue starts with the "rare" colors first so player must hunt through
-  // blocking pieces to find them.
-  {
-    binQueue: [
-      'orange', 'purple',
-      'red', 'blue', 'green', 'yellow',
-      'red', 'blue', 'green', 'yellow',
-    ],
-    pieces: [
-      P(foundation()),
-      P(frontWall(),  frontWallScrews('red',   'blue',  'green')),
-      P(backWall(),   backWallScrews ('red',   'blue',  'green')),
-      P(leftWall(),   wallScrewsX(-1, 'red',   'blue',  'yellow')),
-      P(rightWall(),  wallScrewsX( 1, 'red',   'blue',  'yellow')),
-      P(roofA(),      roofScrews    ('red',   'green', 'yellow')),
-      P(roofB(),      roofScrews    ('red',   'green', 'yellow')),
-      P({
-        size: [0.45, 0.95, 0.45],
-        pos:  [0.70, ROOF_PEAK_Y + 0.28, 0.55],
-        rot:  [0, 0, 0],
-        color: HOUSE.chimney, topColor: HOUSE.chimneyTop,
-      }, [
-        s('blue',   [-0.13, 0.49,  0.13]),
-        s('green',  [ 0.13, 0.49, -0.13]),
-        s('orange', [-0.13, 0.49, -0.13]),
-      ]),
-      P({
-        size: [0.7, 1.1, 0.10],
-        pos:  [0, 0.40, HALF + FRONT_GAP],
-        rot:  [0, 0, 0],
-        color: HOUSE.door, topColor: HOUSE.doorDark,
-      }, [
-        s('blue',   [-0.22, 0.30, 0.06], [0, 0, 1]),
-        s('green',  [ 0.22, 0.30, 0.06], [0, 0, 1]),
-        s('purple', [ 0.00,-0.40, 0.06], [0, 0, 1]),
-      ]),
-      P({
-        size: [0.6, 0.5, 0.08],
-        pos:  [0, 1.15, HALF + FRONT_GAP - 0.02],
-        rot:  [0, 0, 0],
-        color: HOUSE.window, topColor: HOUSE.windowFrame,
-      }, [
-        s('yellow', [-0.18, 0.13, 0.05], [0, 0, 1]),
-        s('orange', [ 0.18, 0.13, 0.05], [0, 0, 1]),
-        s('purple', [ 0.00,-0.13, 0.05], [0, 0, 1]),
-      ]),
-      P(innerFloor(), floorScrews('yellow', 'orange', 'purple')),
-    ],
-  },
-];
+// L2/L3 are temporarily hidden per the proposal — only the rebuilt cottage
+// counts as content for this iteration.
+export const LEVELS = [COTTAGE];
