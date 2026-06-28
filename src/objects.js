@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
 // ---------- Palette ----------
 export const SCREW_COLORS = {
@@ -116,29 +117,33 @@ export class Screw {
     collar.position.y = 0;
     g.add(collar);
 
-    // head — smaller (0.20 → 0.13)
+    // head — flat plastic cap (was domed, now closer to a coin)
     const headR = 0.13;
-    const head = new THREE.Mesh(new THREE.CylinderGeometry(headR, headR, 0.07, 22), headMat);
-    head.position.y = 0.045;
+    const head = new THREE.Mesh(new THREE.CylinderGeometry(headR, headR, 0.04, 22), headMat);
+    head.position.y = 0.025;
     head.castShadow = true;
     head.userData.isHead = true;
     g.add(head);
 
-    // dome
+    // very flat dome — just enough curvature to catch the light
     const dome = new THREE.Mesh(
       new THREE.SphereGeometry(headR, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2.3),
       headMat
     );
-    dome.position.y = 0.078;
-    dome.scale.y = 0.36;
+    dome.position.y = 0.045;
+    dome.scale.y = 0.18;
     g.add(dome);
 
-    // cross slot
-    const s1 = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.016, 0.034), dark);
-    s1.position.y = 0.088;
+    // recessed cross slot — sits inside the head plane instead of riding on top
+    const slotW = 0.18;
+    const slotT = 0.014;
+    const slotZ = 0.034;
+    const slotY = 0.040;
+    const s1 = new THREE.Mesh(new THREE.BoxGeometry(slotW, slotT, slotZ), dark);
+    s1.position.y = slotY;
     g.add(s1);
-    const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.016, 0.16), dark);
-    s2.position.y = 0.088;
+    const s2 = new THREE.Mesh(new THREE.BoxGeometry(slotZ, slotT, slotW), dark);
+    s2.position.y = slotY;
     g.add(s2);
 
     this._headMat = headMat;
@@ -247,12 +252,26 @@ export class Plank {
     const mainMat = makeToonMat(base);
     const topMat  = makeToonMat(top);
     const sideMat = makeToonMat(sideHex);
-    const mats = [sideMat, sideMat, topMat, mainMat, mainMat, mainMat];
 
-    this.mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(this.size.x, this.size.y, this.size.z),
-      mats
-    );
+    // Pieces with a distinct top colour (chimney, door, window) keep a
+    // multi-material BoxGeometry so each face can be tinted separately.
+    // Plain single-colour pieces (walls, foundation, roof, inner floor)
+    // use RoundedBoxGeometry so their silhouettes read as cartoon shapes.
+    const wantsMultiColor = !!spec.topColor && spec.topColor !== base;
+    if (wantsMultiColor) {
+      const mats = [sideMat, sideMat, topMat, mainMat, mainMat, mainMat];
+      this.mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(this.size.x, this.size.y, this.size.z),
+        mats
+      );
+    } else {
+      const minDim = Math.min(this.size.x, this.size.y, this.size.z);
+      const radius = Math.min(0.05, minDim * 0.18);
+      this.mesh = new THREE.Mesh(
+        new RoundedBoxGeometry(this.size.x, this.size.y, this.size.z, 3, radius),
+        mainMat
+      );
+    }
     this.mesh.position.copy(this.position);
     this.mesh.rotation.copy(this.rotation);
     this.mesh.castShadow = true;
