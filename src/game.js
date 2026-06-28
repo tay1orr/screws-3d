@@ -229,6 +229,15 @@ export class Game {
   _processCascadeEvents(events) {
     if (!events?.length) return;
     let anyMatch = false;
+
+    // Boxes that animated in this batch — their rect is mid-animation, so
+    // any auto-transfer landing in one of them must wait for the slide-in
+    // to settle before sampling the bin's screen position.
+    const slidInBoxes = new Set();
+    for (const e of events) {
+      if (e.type === 'box-slide-in') slidInBoxes.add(e.boxIndex);
+    }
+
     for (const e of events) {
       if (e.type === 'box-complete') {
         anyMatch = true;
@@ -236,7 +245,6 @@ export class Game {
           this.view.removeToken(id);
           const s = this._findScrewById(id);
           if (s) {
-            // tear down once the DOM token's fade-out is done
             this._setTimer(() => { s.state = 'gone'; }, 340);
           }
         }
@@ -246,15 +254,24 @@ export class Game {
         const s = this._findScrewById(e.screwId);
         if (s) {
           s.target = { type: 'box', boxIndex: e.boxIndex, stackIndex: e.stackIndex };
-          this.view.moveTokenToTarget(e.screwId, s.target);
+          if (slidInBoxes.has(e.boxIndex)) {
+            // Delay so the destination box's slide-in finishes and its
+            // getBoundingClientRect returns the settled position.
+            this._setTimer(() => {
+              this.view.moveTokenToTarget(e.screwId, s.target);
+            }, 320);
+          } else {
+            this.view.moveTokenToTarget(e.screwId, s.target);
+          }
         }
       }
     }
     if (anyMatch) playMatch();
     this.view.syncFromCollector(this.collector);
-    // Throttle the next cascade step so the DOM animations have a chance
-    // to play out before the next visual change.
-    this._cascadeBusyUntil = performance.now() + 360;
+    // Pace the next cascade step. If we deferred any token movement, the
+    // gate has to wait at least slide-in + token transition.
+    const dur = slidInBoxes.size > 0 ? 700 : 360;
+    this._cascadeBusyUntil = performance.now() + dur;
   }
 
   update(dt) {
