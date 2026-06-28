@@ -117,28 +117,22 @@ export class Screw {
     collar.position.y = 0;
     g.add(collar);
 
-    // head — flat plastic cap (was domed, now closer to a coin)
+    // head — flat plastic cap (coin shape, no dome)
     const headR = 0.13;
-    const head = new THREE.Mesh(new THREE.CylinderGeometry(headR, headR, 0.04, 22), headMat);
-    head.position.y = 0.025;
+    const headH = 0.05;
+    const head = new THREE.Mesh(new THREE.CylinderGeometry(headR, headR, headH, 24), headMat);
+    head.position.y = 0.025;       // top face at y = 0.050
     head.castShadow = true;
     head.userData.isHead = true;
     g.add(head);
 
-    // very flat dome — just enough curvature to catch the light
-    const dome = new THREE.Mesh(
-      new THREE.SphereGeometry(headR, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2.3),
-      headMat
-    );
-    dome.position.y = 0.045;
-    dome.scale.y = 0.18;
-    g.add(dome);
-
-    // recessed cross slot — sits inside the head plane instead of riding on top
-    const slotW = 0.18;
-    const slotT = 0.014;
-    const slotZ = 0.034;
-    const slotY = 0.040;
+    // Cross slot — wide, dark, perched just above the head's top face so
+    // it always reads from any angle. Slightly thicker than before to
+    // survive distance shrinkage on mobile.
+    const slotW = 0.20;
+    const slotT = 0.018;
+    const slotZ = 0.042;
+    const slotY = 0.060;            // 0.010 above the head's top face
     const s1 = new THREE.Mesh(new THREE.BoxGeometry(slotW, slotT, slotZ), dark);
     s1.position.y = slotY;
     g.add(s1);
