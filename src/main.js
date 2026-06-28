@@ -329,6 +329,11 @@ function fitCameraToLevel() {
 function loadLevelWithFit(idx) {
   game.loadLevel(idx);
   updateLevelLabels();
+  const level = game.currentLevel();
+  hint.textContent = level?.tutorial ?? '화면을 드래그해 돌리고, 꺼낼 수 있는 나사를 누르세요';
+  hint.style.animation = 'none';
+  void hint.offsetWidth;
+  hint.style.animation = '';
   fitCameraToLevel();
   requestAnimationFrame(fitCameraToLevel);
 }
@@ -351,11 +356,13 @@ window.addEventListener('resize', () => {
 // HUD: small menu button + counter; everything else lives in the pause panel
 const screwCountText = document.getElementById('screw-count-text');
 const menuBtn = document.getElementById('menu');
+const hint = document.getElementById('hint');
 const pausePanel = document.getElementById('pause-panel');
 const pauseLevelLabel = document.getElementById('pause-level-label');
 const pauseResumeBtn = document.getElementById('pause-resume');
 const pauseRestartBtn = document.getElementById('pause-restart');
 const pauseNextBtn = document.getElementById('pause-next');
+const pauseLevelsBtn = document.getElementById('pause-levels');
 const creatorTrigger = document.getElementById('creator-trigger');
 const creatorPanel = document.getElementById('creator-panel');
 const creatorForm = document.getElementById('creator-form');
@@ -363,6 +370,9 @@ const creatorClose = document.getElementById('creator-close');
 const creatorDate = document.getElementById('creator-date');
 const creatorMessage = document.getElementById('creator-message');
 const heartParty = createHeartParty(document.getElementById('heart-party'));
+const levelPanel = document.getElementById('level-panel');
+const levelPanelClose = document.getElementById('level-panel-close');
+const levelGrid = document.getElementById('level-grid');
 const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayMsg = document.getElementById('overlay-msg');
@@ -370,6 +380,7 @@ const overlayEmoji = document.getElementById('overlay-emoji');
 const overlayBtn = document.getElementById('overlay-btn');
 const splash = document.getElementById('splash');
 const startBtn = document.getElementById('start-btn');
+const splashLevelsBtn = document.getElementById('splash-levels');
 
 function levelLabel(index = game.levelIdx) {
   const meta = LEVEL_SUMMARY[index];
@@ -408,6 +419,61 @@ pauseNextBtn.addEventListener('click', () => {
   loadLevelWithFit(game.levelIdx + 1);
   closePause();
   overlay.classList.add('hidden');
+});
+
+function dismissSplash() {
+  splash.classList.add('hidden');
+  splash.setAttribute('aria-hidden', 'true');
+  setTimeout(() => splash.classList.add('splash--gone'), 450);
+}
+
+function renderLevelCards() {
+  const fragment = document.createDocumentFragment();
+  for (const meta of LEVEL_SUMMARY) {
+    const unlocked = progress.isUnlocked(meta.index);
+    const completed = progress.isCompleted(meta.index);
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = `level-card${completed ? ' level-card--complete' : ''}${unlocked ? '' : ' level-card--locked'}`;
+    card.disabled = !unlocked;
+    card.dataset.levelIndex = String(meta.index);
+    card.innerHTML = `
+      <span class="level-card-number">${completed ? '✓' : meta.index + 1}</span>
+      <span class="level-card-copy">
+        <strong>${meta.name}</strong>
+        <small>난이도 ${meta.difficulty}/10 · 나사 ${meta.screwCount}개</small>
+      </span>
+      <span class="level-card-status" aria-hidden="true">${unlocked ? '›' : '🔒'}</span>
+    `;
+    card.addEventListener('click', () => selectLevel(meta.index));
+    fragment.appendChild(card);
+  }
+  levelGrid.replaceChildren(fragment);
+}
+
+function openLevelPanel() {
+  renderLevelCards();
+  levelPanel.classList.remove('hidden');
+}
+
+function closeLevelPanel() {
+  levelPanel.classList.add('hidden');
+}
+
+function selectLevel(index) {
+  if (!progress.isUnlocked(index)) return;
+  closeLevelPanel();
+  dismissSplash();
+  loadLevelWithFit(index);
+  closePause();
+  overlay.classList.add('hidden');
+}
+
+pauseLevelsBtn.addEventListener('click', openLevelPanel);
+splashLevelsBtn.addEventListener('click', openLevelPanel);
+levelPanelClose.addEventListener('click', closeLevelPanel);
+levelPanel.addEventListener('pointerdown', (event) => {
+  if (event.target === levelPanel) closeLevelPanel();
 });
 
 function openCreatorSecret() {
@@ -464,9 +530,7 @@ overlayBtn.addEventListener('click', () => {
 });
 startBtn.addEventListener('click', () => {
   resumeAudio();
-  splash.classList.add('hidden');
-  splash.setAttribute('aria-hidden', 'true');
-  setTimeout(() => splash.classList.add('splash--gone'), 450);
+  dismissSplash();
 });
 
 game.onCountChange = (remaining, total) => {
@@ -510,7 +574,7 @@ game.onStateChange = (state) => {
 };
 
 // ---------- Initial level load (callbacks are now wired) ----------
-loadLevelWithFit(0);
+loadLevelWithFit(progress.snapshot().maxUnlocked);
 
 // ---------- Loop ----------
 const clock = new THREE.Clock();

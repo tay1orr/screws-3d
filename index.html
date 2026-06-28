@@ -49,6 +49,7 @@
       <button id="pause-resume" class="primary-btn">계속하기</button>
       <button id="pause-restart" class="secondary-btn">레벨 다시 시작</button>
       <button id="pause-next" class="secondary-btn" disabled>다음 레벨</button>
+      <button id="pause-levels" class="secondary-btn" type="button">레벨 선택</button>
       <button id="creator-trigger" class="creator-btn" type="button">
         제작자: taylorr <span aria-hidden="true">♥</span>
       </button>
@@ -69,6 +70,15 @@
 
   <div id="heart-party" aria-hidden="true"></div>
 
+  <div id="level-panel" class="hidden" role="dialog" aria-modal="true" aria-labelledby="level-panel-title">
+    <div class="level-panel-card">
+      <button id="level-panel-close" class="secret-close" type="button" aria-label="레벨 선택 닫기">×</button>
+      <h2 id="level-panel-title">레벨 선택</h2>
+      <p>완료하면 다음 퍼즐이 열려요.</p>
+      <div id="level-grid"></div>
+    </div>
+  </div>
+
   <div id="overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
     <div class="overlay-card">
       <div id="overlay-emoji">🎉</div>
@@ -88,6 +98,7 @@
       <h1>Screwdom 3D</h1>
       <p>색깔 나사를 모아 구조물을 분해하세요</p>
       <button id="start-btn" class="primary-btn">시작하기</button>
+      <button id="splash-levels" class="splash-levels-btn" type="button">레벨 선택</button>
     </div>
   </div>
 

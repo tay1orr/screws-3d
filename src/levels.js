@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { HOUSE } from './objects.js';
+import { TUTORIAL_LEVEL, WINDMILL_LEVEL } from './2026-06-28-campaign-levels.js';
 
 // ---------- tiny helpers ----------
 const v3 = (a) => new THREE.Vector3(...a);
@@ -36,11 +37,11 @@ const FRONT_GAP   =  0.22;          // distance the door / window sits in front 
 // Multi-layer reveals: door blocks centre front-wall screw, window frame
 // blocks the window glass screws, gable roof blocks the inner floor.
 const COTTAGE = {
-  id: 'cottage-01',
+  id: 'cottage-03',
   name: '다층 오두막',
   world: 1,
   difficulty: 10,
-  recommendedOrder: 1,
+  recommendedOrder: 3,
   description: '가려진 나사와 여러 방향 탐색을 모두 사용하는 보스형 레벨',
   binQueue: [
     // 28 bins, color shares match the totals above
@@ -189,6 +190,8 @@ const COTTAGE = {
 
     // ===== gable roof (2 panels) =====
     P({
+      id: 'roof-front',
+      blockedBy: ['chimney-body', 'chimney-cap'],
       size: [ROOF_W, ROOF_THICK, ROOF_LEN],
       pos:  [0, ROOF_CY, ROOF_CZ],
       rot:  [ROOF_ANG, 0, 0],
@@ -202,6 +205,7 @@ const COTTAGE = {
       s('orange', [ 0.00, ROOF_THICK/2 + 0.01,  0.50]),
     ]),
     P({
+      id: 'roof-rear',
       size: [ROOF_W, ROOF_THICK, ROOF_LEN],
       pos:  [0, ROOF_CY, -ROOF_CZ],
       rot:  [-ROOF_ANG, 0, 0],
@@ -216,9 +220,11 @@ const COTTAGE = {
     ]),
 
     // ===== chimney (body + cap) =====
-    // Body sits beside the ridge. Side screws so the cap (decorative) doesn't
-    // block them — the cap is just a visual flourish that falls on its own.
+    // Remove the cap first, then the body, before dismantling the supporting
+    // front roof panel. This prevents the chimney from floating in mid-air.
     P({
+      id: 'chimney-body',
+      blockedBy: ['chimney-cap'],
       size: [0.42, 0.95, 0.42],
       pos:  [0.85, ROOF_PEAK_Y + 0.40, 0.55],
       rot:  [0, 0, 0],
@@ -231,6 +237,7 @@ const COTTAGE = {
       s('purple', [ 0.00,  0.25,  0.22], [ 0, 0, 1]),
     ]),
     P({
+      id: 'chimney-cap',
       size: [0.58, 0.12, 0.58],
       pos:  [0.85, ROOF_PEAK_Y + 0.95, 0.55],
       rot:  [0, 0, 0],
@@ -311,9 +318,8 @@ const COTTAGE = {
   ],
 };
 
-// L2/L3 are temporarily hidden per the proposal — only the rebuilt cottage
-// counts as content for this iteration.
-export const LEVELS = [COTTAGE];
+// Three-level campaign: tutorial board, windmill, then the cottage boss level.
+export const LEVELS = [TUTORIAL_LEVEL, WINDMILL_LEVEL, COTTAGE];
 
 export const LEVEL_SUMMARY = LEVELS.map((level, index) => ({
   index,

@@ -26,6 +26,7 @@ node --check src\2026-06-28-collector-state.js
 node --check src\2026-06-28-level-validator.js
 node --check src\2026-06-28-heart-party.js
 node --check src\2026-06-28-progress-store.js
+node --check src\2026-06-28-campaign-levels.js
 node --check src\audio.js
 node --check src\game.js
 node --check src\levels.js
@@ -33,11 +34,12 @@ node --check src\main.js
 node --check src\objects.js
 node tests\2026-06-28-run-game-rules.js
 node tests\2026-06-28-progress-store-tests.js
+node tests\2026-06-29-campaign-level-tests.js
 git diff --check
 git status --short
 ```
 
-테스트는 `12/12 tests passed`, `3/3 progress tests passed`여야 한다. 오류가 있으면 커밋하거나 푸시하지 말고 먼저 수정한다.
+테스트는 `12/12 tests passed`, `3/3 progress tests passed`, `2/2 campaign levels passed`여야 한다. 오류가 있으면 커밋하거나 푸시하지 말고 먼저 수정한다.
 
 ## 커밋과 푸시
 
@@ -46,7 +48,7 @@ git status --short
 ```powershell
 git add index.html styles.css README.md vercel.json src tests docs
 git status --short
-git commit -m "Add creator heart easter egg and level progress foundation"
+git commit -m "Add three-level campaign and level selection"
 git push origin master
 ```
 
@@ -65,6 +67,9 @@ git push origin master
 7. 메뉴의 `제작자: taylorr` 버튼이 날짜 입력창을 연다.
 8. 틀린 날짜는 오류 문구와 흔들림만 보여준다.
 9. `20250511` 입력 시 메뉴가 닫히고 대량 하트·충격파·사운드가 재생된다.
+10. 레벨 선택 화면에 첫 나사판·하늘빛 풍차·다층 오두막이 순서대로 표시된다.
+11. 첫 실행에는 첫 나사판만 열려 있고 완료할 때마다 다음 레벨이 열린다.
+12. 각 레벨 나사 수가 18 / 48 / 84로 표시된다.
 
 ## 이번 변경의 핵심
 
@@ -78,5 +83,8 @@ git push origin master
 - 구조물 확대·상향 배치와 구름·힌트 시인성 개선
 - 제작자 날짜 모달과 240개 하트 파티클 이스터에그
 - 레벨 메타데이터·진행도 저장·잠금 해제 기반
+- 3레벨 캠페인과 레벨 선택 화면
+- 튜토리얼 나사판과 원작형 4날개 풍차
+- 캠페인 색상 수·상자 큐·이론 풀이 자동 검증
 
 현재 레벨 구조물은 오두막이다. 원작 홍보 이미지의 풍차 레벨로 교체하는 작업은 이번 배포 안정화 범위에 포함하지 않는다.

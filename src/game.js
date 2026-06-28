@@ -5,6 +5,7 @@ import {
   CollectorState, TARGET_BOX, TARGET_BUFFER,
 } from './2026-06-28-collector-state.js';
 import { validateLevel } from './2026-06-28-level-validator.js';
+import { hasAttachedPartDependency } from './2026-06-29-part-dependencies.js';
 import {
   playClick, playUnscrew, playSlot, playMatch,
   playWin, playLose, playThud, playBlocked,
@@ -169,8 +170,14 @@ export class Game {
       this.planks.push(plank);
 
       for (const ss of (ps.screws ?? [])) {
-        const worldPos = plank.mesh.localToWorld(ss.localPos.clone());
-        const worldNormal = ss.normal.clone().applyQuaternion(plank.mesh.quaternion).normalize();
+        const localPos = ss.localPos?.isVector3
+          ? ss.localPos.clone()
+          : new THREE.Vector3().fromArray(ss.localPos);
+        const localNormal = ss.normal?.isVector3
+          ? ss.normal.clone()
+          : new THREE.Vector3().fromArray(ss.normal);
+        const worldPos = plank.mesh.localToWorld(localPos);
+        const worldNormal = localNormal.applyQuaternion(plank.mesh.quaternion).normalize();
         const screw = new Screw(ss.color, worldPos, worldNormal);
         this.scene.add(screw.mesh);
         plank.addScrew(screw);
@@ -199,11 +206,18 @@ export class Game {
 
     for (const screw of this.screws) {
       if (screw.state !== 'attached') continue;
+      let blocked = hasAttachedPartDependency(screw.plank, this.planks);
+
+      // Structural dependencies take priority. Raycasts still handle pieces
+      // that physically cover a screw but do not have an explicit hierarchy.
+      if (blocked) {
+        screw.setBlocked(true);
+        continue;
+      }
       const origin = screw.mesh.position.clone().addScaledVector(screw.normal, 0.04);
       _ray.set(origin, screw.normal);
       _ray.far = 2.5;
       const hits = _ray.intersectObjects(plankMeshes, false);
-      let blocked = false;
       for (const h of hits) {
         if (h.object !== screw.plank.mesh) { blocked = true; break; }
       }

@@ -1,7 +1,7 @@
-const STORAGE_KEY = 'screwdom3d-progress-v1';
+const STORAGE_KEY = 'screwdom3d-progress-v2';
 
 function defaultState() {
-  return { version: 1, maxUnlocked: 0, completed: [] };
+  return { version: 2, maxUnlocked: 0, completed: [] };
 }
 
 function readState() {
@@ -9,9 +9,9 @@ function readState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultState();
     const parsed = JSON.parse(raw);
-    if (parsed?.version !== 1) return defaultState();
+    if (parsed?.version !== 2) return defaultState();
     return {
-      version: 1,
+      version: 2,
       maxUnlocked: Number.isInteger(parsed.maxUnlocked) ? parsed.maxUnlocked : 0,
       completed: Array.isArray(parsed.completed) ? parsed.completed.filter(Number.isInteger) : [],
     };

@@ -24,8 +24,11 @@
 
 ## 현재 구현된 확장 기반
 
-- 레벨 이름·난이도·설명 메타데이터
-- 브라우저 내부 진행도 저장과 다음 레벨 잠금 해제
+- 레벨 선택 화면과 3레벨 캠페인
+- 레벨 1: 첫 나사판(18개)
+- 레벨 2: 하늘빛 풍차(48개)
+- 레벨 3: 다층 오두막(84개)
+- 브라우저 내부 진행도 저장과 순차 잠금 해제
 - 마지막 레벨에서 같은 레벨을 ‘다음 레벨’로 잘못 표시하지 않는 완료 처리
 - 제작자 메뉴와 비공개 날짜 이스터에그
 
@@ -45,6 +48,7 @@ python -m http.server 8765
 ```powershell
 node tests\2026-06-28-run-game-rules.js
 node tests\2026-06-28-progress-store-tests.js
+node tests\2026-06-29-campaign-level-tests.js
 ```
 
 ## Vercel 배포
@@ -53,7 +57,7 @@ node tests\2026-06-28-progress-store-tests.js
 
 ```powershell
 git add index.html styles.css README.md vercel.json src tests docs
-git commit -m "Add creator heart easter egg and level progress foundation"
+git commit -m "Add three-level campaign and level selection"
 git push origin master
 ```
 
@@ -70,6 +74,7 @@ src/
   game.js                          게임 상태와 애니메이션 수명주기
   objects.js                       나사와 구조물 메시
   levels.js                        레벨 데이터
+  2026-06-28-campaign-levels.js    튜토리얼·풍차 캠페인 레벨
   audio.js                         WebAudio 효과음
   2026-06-28-collector-state.js    상자·버퍼·자동 이동 규칙 엔진
   2026-06-28-level-validator.js    레벨 데이터 검증
@@ -81,6 +86,7 @@ tests/
   2026-06-28-game-rules.js         규칙 테스트 본체
   2026-06-28-run-game-rules.js     명령줄 테스트 실행기
   2026-06-28-progress-store-tests.js 진행도 저장 테스트
+  2026-06-29-campaign-level-tests.js 캠페인 정합성·이론 풀이 테스트
 docs/                              구현 보고서와 전달 문서
 ```
 
