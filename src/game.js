@@ -131,8 +131,20 @@ export class Game {
     }
   }
 
+  // True only while the FSM is in PLAYING and there's no pending cascade
+  // or any box already at capacity (a fourth same-color tap before the
+  // cascade has cleared the box would otherwise spill into the buffer).
+  _isAcceptingInput() {
+    if (this.state !== 'playing') return false;
+    if (this._pendingCascade) return false;
+    for (const b of this.collector.activeBoxes) {
+      if (b && b.screwIds.length >= this.collector.boxCapacity) return false;
+    }
+    return true;
+  }
+
   trySelectScrew(screw) {
-    if (this.state !== 'playing') return;
+    if (!this._isAcceptingInput()) return;
     if (screw.state !== 'attached') return;
 
     if (screw.blocked) {
@@ -332,12 +344,22 @@ export class Game {
 
     if (this.state !== 'playing') return;
 
-    // Win: every screw is gone from the board, no flight pending,
-    // collector reports cleared (no leftover in boxes/buffer/queue).
-    const noAttached = this.attachedScrews().length === 0;
-    const noFlying = this.screws.every(s =>
-      s.state !== 'spinning' && s.state !== 'flying');
-    if (noAttached && noFlying && this.collector.isCleared() && this.totalScrews > 0) {
+    // Both win and lose checks require all transient screw states to have
+    // settled, so the result panel never lands on top of an in-flight or
+    // clearing screw.
+    const noTransient = this.screws.every(s =>
+      s.state !== 'spinning' &&
+      s.state !== 'flying' &&
+      s.state !== 'autoTransferring' &&
+      s.state !== 'clearing');
+    const stable = noTransient && !this._pendingCascade;
+
+    // Win: board is empty, every collector slot/buffer cleared, no
+    // cascade pending, no in-flight animations.
+    if (stable
+        && this.attachedScrews().length === 0
+        && this.collector.isCleared()
+        && this.totalScrews > 0) {
       this.state = 'won';
       playWin();
       for (const p of this.planks) {
@@ -347,11 +369,11 @@ export class Game {
       return;
     }
 
-    // Lose: buffer is full AND no accessible screw can be placed.
-    // We pass the set of unblocked colors so the engine can decide.
-    const accessible = this.attachedScrews().filter(s => !s.blocked);
-    const accessibleColors = new Set(accessible.map(s => s.color));
-    if (this.collector.isStuck(accessibleColors)) {
+    // Lose (rule A): the moment the fifth buffer slot fills, you're out —
+    // regardless of whether more matching screws remain on the board.
+    // Wait for the cascade to finish so auto-transfer has a chance to
+    // empty a slot first; if buffer is still full after that, fail.
+    if (stable && this.collector.isBufferFull()) {
       this.state = 'lost';
       playLose();
       this._emit();

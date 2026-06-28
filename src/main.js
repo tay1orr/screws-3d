@@ -274,10 +274,14 @@ window.addEventListener('resize', () => {
 });
 
 // ---------- HUD ----------
-const levelLabel = document.getElementById('level-label');
+// HUD: small menu button + counter; everything else lives in the pause panel
 const screwCountText = document.getElementById('screw-count-text');
-const restartBtn = document.getElementById('restart');
-const nextBtn = document.getElementById('next');
+const menuBtn = document.getElementById('menu');
+const pausePanel = document.getElementById('pause-panel');
+const pauseLevelLabel = document.getElementById('pause-level-label');
+const pauseResumeBtn = document.getElementById('pause-resume');
+const pauseRestartBtn = document.getElementById('pause-restart');
+const pauseNextBtn = document.getElementById('pause-next');
 const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayMsg = document.getElementById('overlay-msg');
@@ -286,14 +290,26 @@ const overlayBtn = document.getElementById('overlay-btn');
 const splash = document.getElementById('splash');
 const startBtn = document.getElementById('start-btn');
 
-restartBtn.addEventListener('click', () => {
+function openPause() {
+  pauseLevelLabel.textContent = `Level ${game.levelIdx + 1}`;
+  pausePanel.classList.remove('hidden');
+}
+function closePause() {
+  pausePanel.classList.add('hidden');
+}
+menuBtn.addEventListener('click', openPause);
+pauseResumeBtn.addEventListener('click', closePause);
+pauseRestartBtn.addEventListener('click', () => {
   loadLevelWithFit(game.levelIdx);
+  closePause();
   overlay.classList.add('hidden');
 });
-nextBtn.addEventListener('click', () => {
+pauseNextBtn.addEventListener('click', () => {
   loadLevelWithFit(game.levelIdx + 1);
+  closePause();
   overlay.classList.add('hidden');
 });
+
 overlayBtn.addEventListener('click', () => {
   if (game.state === 'won') loadLevelWithFit(game.levelIdx + 1);
   else loadLevelWithFit(game.levelIdx);
@@ -309,7 +325,7 @@ game.onCountChange = (remaining, total) => {
 };
 
 game.onStateChange = (state) => {
-  levelLabel.textContent = `Level ${game.levelIdx + 1}`;
+  pauseLevelLabel.textContent = `Level ${game.levelIdx + 1}`;
   screwCountText.textContent = `${game.attachedScrews().length} / ${game.totalScrews}`;
   if (state === 'won') {
     overlayEmoji.textContent = '🎉';
@@ -317,16 +333,16 @@ game.onStateChange = (state) => {
     overlayMsg.textContent = '훌륭해요! 다음 집으로 가볼까요?';
     overlayBtn.textContent = '다음 레벨';
     setTimeout(() => overlay.classList.remove('hidden'), 700);
-    nextBtn.disabled = false;
+    pauseNextBtn.disabled = false;
   } else if (state === 'lost') {
     overlayEmoji.textContent = '😵';
     overlayTitle.textContent = 'Game Over';
     overlayMsg.textContent = '임시 보관함이 가득 찼어요. 다시 시도해보세요!';
     overlayBtn.textContent = '다시 시도';
     setTimeout(() => overlay.classList.remove('hidden'), 600);
-    nextBtn.disabled = true;
+    pauseNextBtn.disabled = true;
   } else {
-    nextBtn.disabled = true;
+    pauseNextBtn.disabled = true;
   }
 };
 
