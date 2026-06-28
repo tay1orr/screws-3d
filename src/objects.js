@@ -159,35 +159,16 @@ export class Screw {
     }
   }
 
-  startUnscrew(tray, target) {
-    this.tray = tray;
+  // viewProj.getTargetWorldPos(target) → THREE.Vector3 in world space.
+  // The view provider unprojects the DOM bin's screen position through
+  // the perspective camera, so the 3D screw flies straight to the DOM
+  // bin's pixel coordinates regardless of camera angle or viewport size.
+  startUnscrew(viewProj, target) {
+    this.viewProj = viewProj;
     this.target = target;
     this.state = 'spinning';
     this.spinTime = 0;
     this.startPos = this.mesh.position.clone();
-  }
-
-  // Used by auto-transfer: re-target a screw already in the tray.
-  retarget(target) {
-    this.target = target;
-    const localPos = this.tray.getTargetLocalPos(target);
-    this.mesh.position.copy(localPos);
-    this.mesh.quaternion.identity();
-  }
-
-  // Smooth tween from current tray-local position to a new target slot.
-  // Used when a buffered screw's color becomes active and it auto-transfers
-  // into a box. Resets _landedHandled so game.js re-fires landing detection.
-  startAutoTransfer(target, dur = 0.30) {
-    this.state = 'autoTransferring';
-    this.target = target;
-    this.autoTransferTime = 0;
-    this.autoTransferDur = dur;
-    this.atStartPos = this.mesh.position.clone();
-    this.atEndPos = this.tray.getTargetLocalPos(target);
-    this.atMidPos = this.atStartPos.clone().lerp(this.atEndPos, 0.5);
-    this.atMidPos.y += 0.18;
-    this._landedHandled = false;
   }
 
   update(dt) {
@@ -199,10 +180,10 @@ export class Screw {
         this.state = 'flying';
         this.flightTime = 0;
         this.startPos = this.mesh.position.clone();
-        const target = this.tray.getTargetWorldPos(this.target);
-        this.targetPos = target;
+        const target = this.viewProj.getTargetWorldPos(this.target);
+        this.targetPos = target.clone();
         const mid = this.startPos.clone().lerp(target, 0.5);
-        mid.y = Math.max(this.startPos.y, target.y) + 1.4;
+        mid.y = Math.max(this.startPos.y, target.y) + 1.2;
         this.midPos = mid;
       }
       return;
@@ -211,53 +192,23 @@ export class Screw {
       this.flightTime += dt;
       const t = Math.min(this.flightTime / this.flightDur, 1);
       const e = t * t * (3 - 2 * t);
-      const liveTarget = this.tray.getTargetWorldPos(this.target);
-      this.targetPos.lerp(liveTarget, 0.25);
+      // Live-update target so a moving camera doesn't drift the landing
+      // point off the DOM bin's actual pixel position.
+      const liveTarget = this.viewProj.getTargetWorldPos(this.target);
+      this.targetPos.lerp(liveTarget, 0.35);
       const p01 = this.startPos.clone().lerp(this.midPos, e);
       const p12 = this.midPos.clone().lerp(this.targetPos, e);
       this.mesh.position.copy(p01.lerp(p12, e));
       this.mesh.rotateOnAxis(UP, dt * 16);
-      const camQ = new THREE.Quaternion();
-      this.tray.group.getWorldQuaternion(camQ);
-      this.mesh.quaternion.slerp(camQ, 0.2);
       if (t >= 1) {
-        this.tray.group.attach(this.mesh);
-        const localTarget = this.tray.getTargetLocalPos(this.target);
-        this.mesh.position.copy(localTarget);
-        this.mesh.quaternion.identity();
-        this.state = 'inSlot';
+        // Don't reparent — game.js will destroy the 3D mesh and ask the
+        // DOM BinView to create a head token in its place.
+        this.state = 'landed';
       }
       return;
     }
-    if (this.state === 'autoTransferring') {
-      this.autoTransferTime += dt;
-      const t = Math.min(this.autoTransferTime / this.autoTransferDur, 1);
-      const e = t * t * (3 - 2 * t);
-      const p01 = this.atStartPos.clone().lerp(this.atMidPos, e);
-      const p12 = this.atMidPos.clone().lerp(this.atEndPos, e);
-      this.mesh.position.copy(p01.lerp(p12, e));
-      this.mesh.rotateOnAxis(UP, dt * 8);
-      if (t >= 1) {
-        this.mesh.position.copy(this.atEndPos);
-        this.mesh.quaternion.identity();
-        this.state = 'inSlot';
-      }
-      return;
-    }
-
-    if (this.state === 'clearing') {
-      this.clearTime += dt;
-      const t = Math.min(this.clearTime / 0.35, 1);
-      const s = Math.max(0, 1 - t);
-      this.mesh.scale.set(s, s, s);
-      this.mesh.position.y += dt * 1.4;
-      if (t >= 1) this.state = 'cleared';
-    }
-  }
-
-  startClear() {
-    this.state = 'clearing';
-    this.clearTime = 0;
+    // Auto-transfer + clear are DOM-token concerns now; nothing 3D to do
+    // for screws in those collector states.
   }
 }
 
@@ -334,172 +285,7 @@ export class Plank {
   }
 }
 
-// ---------- Slot Tray ----------
-// 2 active bins on top (color-locked) + 5 preview dots showing upcoming colors.
-// When an active bin fills with 3 same-color screws it clears and the next
-// queued color slides in.
-const ACTIVE_SLOTS = 2;
-const PREVIEW_DOTS = 5;
-
-export class SlotTray {
-  constructor() {
-    this.maxPerSlot = 3;
-    this.slotCount = ACTIVE_SLOTS;
-    this.activeBins = [null, null];   // {color, screws[]}
-    this.queue = [];                  // upcoming colors after the 2 active
-    this.group = new THREE.Group();
-    this.topBinMeshes = [];
-    this.previewDots = [];
-    this._build();
-  }
-
-  // ---- Queue management ----
-  setQueue(colors) {
-    const arr = Array.isArray(colors) ? colors.slice() : [];
-    this.activeBins[0] = arr[0] ? { color: arr[0], screws: [] } : null;
-    this.activeBins[1] = arr[1] ? { color: arr[1], screws: [] } : null;
-    this.queue = arr.slice(2);
-    this.updateVisuals();
-  }
-  reset() {
-    this.activeBins = [null, null];
-    this.queue = [];
-    this.updateVisuals();
-  }
-  // Compat shim for legacy callers
-  setSlotCount(_n) {}
-  get slots() { return this.activeBins; }
-
-  // ---- Tap logic ----
-  findSlotForColor(color) {
-    for (let i = 0; i < ACTIVE_SLOTS; i++) {
-      const b = this.activeBins[i];
-      if (b && b.color === color && b.screws.length < this.maxPerSlot) return i;
-    }
-    return -1;
-  }
-  reserveSlot(screw) {
-    const i = this.findSlotForColor(screw.color);
-    if (i < 0) return -1;
-    this.activeBins[i].screws.push(screw);
-    return i;
-  }
-  stackIndexFor(screw, slotIndex) {
-    return this.activeBins[slotIndex].screws.indexOf(screw);
-  }
-  checkMatch(i) {
-    const b = this.activeBins[i];
-    if (b && b.screws.length >= this.maxPerSlot) {
-      const screws = b.screws.slice();
-      const next = this.queue.shift();
-      this.activeBins[i] = next ? { color: next, screws: [] } : null;
-      this.updateVisuals();
-      return screws;
-    }
-    return null;
-  }
-  isAllOccupied() {
-    return this.activeBins.every(b => b !== null);
-  }
-
-  // ---- 3D layout ----
-  _build() {
-    // Top row — 2 color-locked bins
-    for (let i = 0; i < ACTIVE_SLOTS; i++) {
-      const x = (i - 0.5) * 1.05;
-      const shellMat = new THREE.MeshToonMaterial({ color: 0xc8b89a, gradientMap: gradientMap() });
-      const shell = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.72, 0.46), shellMat);
-      shell.position.set(x, 0.42, 0);
-      this.group.add(shell);
-      withOutline(shell, 1.025, 0x4a3220);
-      this.topBinMeshes.push(shell);
-
-      // inner cream face (acts as a "tray plate" inside the bin)
-      const inner = new THREE.Mesh(
-        new THREE.BoxGeometry(0.62, 0.62, 0.04),
-        new THREE.MeshToonMaterial({ color: 0xfff4dc, gradientMap: gradientMap() })
-      );
-      inner.position.set(x, 0.42, 0.21);
-      this.group.add(inner);
-    }
-
-    // Bottom row — 5 preview dots
-    for (let j = 0; j < PREVIEW_DOTS; j++) {
-      const x = (j - 2) * 0.46;
-      const ring = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.17, 0.17, 0.045, 24),
-        new THREE.MeshToonMaterial({ color: 0x8e9bb0, gradientMap: gradientMap() })
-      );
-      ring.position.set(x, -0.10, 0);
-      this.group.add(ring);
-
-      const dot = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.13, 0.13, 0.05, 22),
-        new THREE.MeshToonMaterial({ color: 0xb6c1d2, gradientMap: gradientMap() })
-      );
-      dot.position.set(x, -0.07, 0);
-      this.group.add(dot);
-      this.previewDots.push(dot);
-    }
-  }
-
-  updateVisuals() {
-    // Kept so existing setQueue/checkMatch shims still compile. New code path
-    // is syncFromCollector below.
-    for (let i = 0; i < ACTIVE_SLOTS; i++) {
-      const b = this.activeBins[i];
-      const shell = this.topBinMeshes[i];
-      if (!shell) continue;
-      shell.material.color.setHex(b ? SCREW_COLORS[b.color] : 0xc8b89a);
-    }
-    for (let j = 0; j < PREVIEW_DOTS; j++) {
-      const c = this.queue[j];
-      const dot = this.previewDots[j];
-      if (!dot) continue;
-      dot.material.color.setHex(c ? SCREW_COLORS[c] : 0xb6c1d2);
-    }
-  }
-
-  // Sync the tray's tints to a live CollectorState. Top boxes adopt the
-  // active box colors; bottom dots adopt the color of whatever screw is
-  // currently parked in each buffer slot (gray when empty).
-  syncFromCollector(collector) {
-    for (let i = 0; i < ACTIVE_SLOTS; i++) {
-      const b = collector.activeBoxes?.[i];
-      const shell = this.topBinMeshes[i];
-      if (!shell) continue;
-      shell.material.color.setHex(b ? SCREW_COLORS[b.color] : 0xc8b89a);
-    }
-    for (let j = 0; j < PREVIEW_DOTS; j++) {
-      const entry = collector.buffer?.[j];
-      const dot = this.previewDots[j];
-      if (!dot) continue;
-      dot.material.color.setHex(entry ? SCREW_COLORS[entry.color] : 0xb6c1d2);
-    }
-  }
-
-  // ---------- target → position lookup ----------
-  // target = { type:'box', boxIndex, stackIndex } | { type:'buffer', slotIndex }
-  getTargetLocalPos(target) {
-    if (target.type === 'box') {
-      return this.getBoxLocalPos(target.boxIndex, target.stackIndex);
-    }
-    return this.getBufferLocalPos(target.slotIndex);
-  }
-  getTargetWorldPos(target) {
-    this.group.updateMatrixWorld(true);
-    return this.getTargetLocalPos(target).applyMatrix4(this.group.matrixWorld);
-  }
-  getBoxLocalPos(boxIndex, stackIndex = 0) {
-    const x = (boxIndex - 0.5) * 1.05;
-    return new THREE.Vector3(x + (stackIndex - 1) * 0.17, 0.42, 0.28);
-  }
-  getBufferLocalPos(slotIndex) {
-    const x = (slotIndex - 2) * 0.46;
-    return new THREE.Vector3(x, -0.07, 0.07);
-  }
-
-  // ---- legacy box-only API kept so old call sites still compile ----
-  getSlotLocalPos(i, stack = 0) { return this.getBoxLocalPos(i, stack); }
-  getSlotWorldPos(i, stack = 0) { return this.getTargetWorldPos({ type: 'box', boxIndex: i, stackIndex: stack }); }
-}
+// SlotTray was removed in Phase B. The collection UI lives in the DOM —
+// see src/2026-06-28-bin-view.js. Screw flight targets come from a
+// viewProj helper that unprojects DOM bin pixel coordinates through the
+// perspective camera.

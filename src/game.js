@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Screw, Plank, SlotTray } from './objects.js';
+import { Screw, Plank } from './objects.js';
 import { LEVELS } from './levels.js';
 import {
   CollectorState, TARGET_BOX, TARGET_BUFFER,
@@ -13,19 +13,16 @@ import {
 const _ray = new THREE.Raycaster();
 
 export class Game {
-  constructor(scene, camera) {
+  constructor(scene, camera, view, viewProj) {
     this.scene = scene;
     this.camera = camera;
+    // view  = DOM BinView (boxes + buffer + head tokens)
+    // viewProj.getTargetWorldPos(target) → THREE.Vector3 in perspective
+    //   world space, derived from the DOM bin's pixel position.
+    this.view = view;
+    this.viewProj = viewProj;
 
-    this.tray = new SlotTray();
-    // Tray sits in screen space as a camera child. Initial position is
-    // a safe default; main.js's updateTrayForViewport() recalculates it
-    // for the actual viewport (and on every resize).
-    camera.add(this.tray.group);
-    this.tray.group.position.set(0, 0.85, -3.6);
-    this.tray.group.scale.set(0.75, 0.75, 0.75);
-
-    // Pure rules engine: 2 active color-locked bins + 5 buffer slots + queue.
+    // Pure rules engine.
     this.collector = new CollectorState({
       activeBoxCount: 2,
       boxCapacity: 3,
@@ -42,10 +39,27 @@ export class Game {
 
     this._particles = [];
     this._pendingCascade = false;
+    this._cascadeBusyUntil = 0;
+    this._timers = new Set();   // tracked setTimeout ids for cancel-on-restart
+  }
+
+  // ---------- timer helpers (canceled on loadLevel) ----------
+  _setTimer(fn, ms) {
+    const id = setTimeout(() => {
+      this._timers.delete(id);
+      fn();
+    }, ms);
+    this._timers.add(id);
+    return id;
+  }
+  _clearTimers() {
+    for (const id of this._timers) clearTimeout(id);
+    this._timers.clear();
   }
 
   loadLevel(idx) {
-    // clear previous level
+    // wipe previous level entities + DOM tokens + scheduled callbacks
+    this._clearTimers();
     for (const p of this.planks) {
       if (p.mesh.parent) p.mesh.parent.remove(p.mesh);
     }
@@ -58,34 +72,27 @@ export class Game {
     this._particles = [];
     this.planks = [];
     this.screws = [];
+    this.view.reset();
     this._pendingCascade = false;
+    this._cascadeBusyUntil = 0;
 
     this.levelIdx = ((idx % LEVELS.length) + LEVELS.length) % LEVELS.length;
     this.state = 'playing';
 
     const level = LEVELS[this.levelIdx];
 
-    // Static check: catch malformed levels (color counts, queue/screw
-    // mismatch) before they reach the player. Logs to console but never
-    // blocks — Stage 6 polish surface, not a runtime guard.
     const validation = validateLevel(level);
     if (validation.errors.length) {
-      console.warn(
-        `[Level ${this.levelIdx + 1}] validation errors:`,
-        validation.errors,
-      );
+      console.warn(`[Level ${this.levelIdx + 1}] validation errors:`, validation.errors);
     }
     if (validation.warnings.length) {
-      console.info(
-        `[Level ${this.levelIdx + 1}] validation warnings:`,
-        validation.warnings,
-      );
+      console.info(`[Level ${this.levelIdx + 1}] validation warnings:`, validation.warnings);
     }
 
-    const pieces = Array.isArray(level) ? level : level.pieces;
-    const binQueue = Array.isArray(level) ? [] : (level.binQueue ?? []);
+    const pieces   = Array.isArray(level) ? level : level.pieces;
+    const binQueue = Array.isArray(level) ? []    : (level.binQueue ?? []);
     this.collector.loadLevel(binQueue);
-    this.tray.syncFromCollector(this.collector);
+    this.view.syncFromCollector(this.collector);
 
     for (const ps of pieces) {
       const plank = new Plank(ps);
@@ -131,12 +138,12 @@ export class Game {
     }
   }
 
-  // True only while the FSM is in PLAYING and there's no pending cascade
-  // or any box already at capacity (a fourth same-color tap before the
-  // cascade has cleared the box would otherwise spill into the buffer).
+  // Input only flows while no cascade is pending and no box has already
+  // been reserved-full (would otherwise spill the next same-color tap).
   _isAcceptingInput() {
     if (this.state !== 'playing') return false;
     if (this._pendingCascade) return false;
+    if (performance.now() < this._cascadeBusyUntil) return false;
     for (const b of this.collector.activeBoxes) {
       if (b && b.screwIds.length >= this.collector.boxCapacity) return false;
     }
@@ -153,27 +160,23 @@ export class Game {
       return;
     }
 
-    // Ask the rules engine where this color can go.
     const result = this.collector.acceptScrew(screw.color, screw.id);
     if (!result) {
-      // Color doesn't match either active box AND buffer is full → reject.
       playBlocked();
       this._shake(screw);
       return;
     }
 
-    // Build the flight target. Boxes get a stackIndex (0..2); buffers
-    // identify by slotIndex.
     const target = result.target === TARGET_BOX
       ? { type: 'box',    boxIndex: result.boxIndex,  stackIndex: result.stackIndex }
       : { type: 'buffer', slotIndex: result.slotIndex };
 
     playUnscrew();
-    screw.startUnscrew(this.tray, target);
+    screw.startUnscrew(this.viewProj, target);
     screw.plank.removeScrew(screw);
 
     if (screw.plank.state === 'falling') {
-      setTimeout(() => playThud(), 280);
+      this._setTimer(() => playThud(), 280);
     }
   }
 
@@ -195,8 +198,8 @@ export class Game {
   }
 
   _burstParticles(worldPos, colorHex) {
-    const count = 18;
-    const geo = new THREE.SphereGeometry(0.06, 8, 6);
+    const count = 14;
+    const geo = new THREE.SphereGeometry(0.05, 8, 6);
     const mat = new THREE.MeshBasicMaterial({ color: colorHex });
     for (let i = 0; i < count; i++) {
       const m = new THREE.Mesh(geo, mat);
@@ -206,24 +209,23 @@ export class Game {
         Math.random() * 0.6 + 0.2,
         Math.random() - 0.5,
       ).normalize();
-      const speed = 1.5 + Math.random() * 2.5;
+      const speed = 1.3 + Math.random() * 2.0;
       this.scene.add(m);
       this._particles.push({
         mesh: m,
         vel: dir.multiplyScalar(speed),
         life: 0,
-        max: 0.6 + Math.random() * 0.3,
+        max: 0.55 + Math.random() * 0.3,
       });
     }
   }
 
-  // Look up a Screw by its stable id (used when consuming cascade events).
   _findScrewById(id) {
     for (const s of this.screws) if (s.id === id) return s;
     return null;
   }
 
-  // Translate a CollectorState cascade event into the renderer.
+  // Translate CollectorState cascade events into BinView calls.
   _processCascadeEvents(events) {
     if (!events?.length) return;
     let anyMatch = false;
@@ -231,37 +233,28 @@ export class Game {
       if (e.type === 'box-complete') {
         anyMatch = true;
         for (const id of e.screwIds) {
+          this.view.removeToken(id);
           const s = this._findScrewById(id);
-          if (s) s.startClear();
+          if (s) {
+            // tear down once the DOM token's fade-out is done
+            this._setTimer(() => { s.state = 'gone'; }, 340);
+          }
         }
-        // burst at the cleared box's location
-        const worldPos = this.tray.getTargetWorldPos({
-          type: 'box', boxIndex: e.boxIndex, stackIndex: 1,
-        });
-        const colorHex = this._colorHexForName(e.color);
-        this._burstParticles(worldPos, colorHex);
       } else if (e.type === 'box-slide-in') {
-        // visual handled by syncFromCollector at the end
+        this.view.slideInBox(e.boxIndex, e.color);
       } else if (e.type === 'auto-transfer') {
-        // The screw was sitting in a buffer slot. Animate a smooth arc to
-        // the destination box. The cascade gate in update() waits on these
-        // to finish before resolving the next step, so chained completions
-        // never tear down a screw mid-flight.
         const s = this._findScrewById(e.screwId);
         if (s) {
-          s.startAutoTransfer({
-            type: 'box', boxIndex: e.boxIndex, stackIndex: e.stackIndex,
-          });
+          s.target = { type: 'box', boxIndex: e.boxIndex, stackIndex: e.stackIndex };
+          this.view.moveTokenToTarget(e.screwId, s.target);
         }
       }
     }
     if (anyMatch) playMatch();
-    this.tray.syncFromCollector(this.collector);
-  }
-
-  _colorHexForName(name) {
-    const s = this.screws.find(sc => sc.color === name);
-    return s ? s.colorHex : 0xffffff;
+    this.view.syncFromCollector(this.collector);
+    // Throttle the next cascade step so the DOM animations have a chance
+    // to play out before the next visual change.
+    this._cascadeBusyUntil = performance.now() + 360;
   }
 
   update(dt) {
@@ -284,25 +277,25 @@ export class Game {
       return true;
     });
 
-    // Mark cascade pending whenever a screw first reaches its destination.
+    // landed → swap 3D mesh for a DOM head token
     for (const s of this.screws) {
-      if (s.state === 'inSlot' && !s._landedHandled) {
-        s._landedHandled = true;
+      if (s.state === 'landed' && !s._handedOff) {
+        s._handedOff = true;
         playSlot();
+        this.view.createHeadToken(s.id, s.color, s.target);
+        if (s.mesh.parent) s.mesh.parent.remove(s.mesh);
+        s.state = 'inBin';
         this._pendingCascade = true;
       }
     }
 
-    // Cascade gate: resolve ONE round at a time, waiting between rounds
-    // for every animation (flight + auto-transfer) to settle. This keeps
-    // chained completions visually coherent — a box never tears down a
-    // screw that hasn't finished its arc.
-    if (this._pendingCascade) {
-      const stillAnimating = this.screws.some(s =>
-        s.state === 'spinning' ||
-        s.state === 'flying' ||
-        s.state === 'autoTransferring');
-      if (!stillAnimating) {
+    // Resolve one cascade step at a time, but only after every screw in
+    // flight has actually arrived AND the previous DOM animation has had
+    // time to play out.
+    if (this._pendingCascade && performance.now() >= this._cascadeBusyUntil) {
+      const stillFlying = this.screws.some(s =>
+        s.state === 'spinning' || s.state === 'flying');
+      if (!stillFlying) {
         const events = this.collector.resolveCascadeStep();
         if (events.length === 0) {
           this._pendingCascade = false;
@@ -312,7 +305,7 @@ export class Game {
       }
     }
 
-    // GC removed planks / cleared screws
+    // GC removed planks / gone screws
     const planksBefore = this.planks.length;
     this.planks = this.planks.filter(p => {
       if (p.state === 'gone') {
@@ -330,13 +323,7 @@ export class Game {
       }
     }
 
-    this.screws = this.screws.filter(s => {
-      if (s.state === 'cleared') {
-        if (s.mesh.parent) s.mesh.parent.remove(s.mesh);
-        return false;
-      }
-      return true;
-    });
+    this.screws = this.screws.filter(s => s.state !== 'gone');
 
     if (this._lastEmittedCount !== this.attachedScrews().length) {
       this._emitCount();
@@ -344,18 +331,12 @@ export class Game {
 
     if (this.state !== 'playing') return;
 
-    // Both win and lose checks require all transient screw states to have
-    // settled, so the result panel never lands on top of an in-flight or
-    // clearing screw.
+    // Stable = no in-flight 3D, no pending cascade, all DOM animations done
     const noTransient = this.screws.every(s =>
-      s.state !== 'spinning' &&
-      s.state !== 'flying' &&
-      s.state !== 'autoTransferring' &&
-      s.state !== 'clearing');
-    const stable = noTransient && !this._pendingCascade;
+      s.state !== 'spinning' && s.state !== 'flying' && s.state !== 'landed');
+    const stable = noTransient && !this._pendingCascade
+      && performance.now() >= this._cascadeBusyUntil;
 
-    // Win: board is empty, every collector slot/buffer cleared, no
-    // cascade pending, no in-flight animations.
     if (stable
         && this.attachedScrews().length === 0
         && this.collector.isCleared()
@@ -369,10 +350,7 @@ export class Game {
       return;
     }
 
-    // Lose (rule A): the moment the fifth buffer slot fills, you're out —
-    // regardless of whether more matching screws remain on the board.
-    // Wait for the cascade to finish so auto-transfer has a chance to
-    // empty a slot first; if buffer is still full after that, fail.
+    // Rule A: buffer 5/5 once the cascade has settled = immediate loss.
     if (stable && this.collector.isBufferFull()) {
       this.state = 'lost';
       playLose();

@@ -25,6 +25,143 @@ html, body {
 }
 #canvas:active { cursor: grabbing; }
 
+/* ---------- BinView (DOM/SVG collection UI) ---------- */
+#bin-view {
+  position: fixed;
+  top: max(56px, calc(env(safe-area-inset-top) + 56px));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.bv-boxes {
+  display: flex;
+  gap: 14px;
+}
+
+.bv-box {
+  --bv-color: #c8b89a;
+  position: relative;
+  width: 90px;
+  height: 86px;
+  background: var(--bv-color);
+  border: 2.5px solid #2a2a3a;
+  border-radius: 18px;
+  box-shadow: 0 4px 0 #2a2a3a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.25s ease;
+}
+/* side tabs that mimic the reference UI's grip nubs */
+.bv-box::before, .bv-box::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 24px;
+  background: var(--bv-color);
+  border: 2.5px solid #2a2a3a;
+  transform: translateY(-50%);
+}
+.bv-box::before { left: -10px;  border-radius: 6px 0 0 6px; border-right: none; }
+.bv-box::after  { right: -10px; border-radius: 0 6px 6px 0; border-left: none; }
+
+.bv-box--empty {
+  background: #d6cab7;
+  opacity: 0.55;
+}
+.bv-box--empty::before, .bv-box--empty::after { background: #d6cab7; }
+
+.bv-holes {
+  position: relative;
+  width: 64px;
+  height: 60px;
+}
+/* 3 holes in a triangular arrangement — two on top, one bottom-center */
+.bv-hole {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #f6efe2;
+  border: 2px solid #6b4a2a;
+  box-shadow: inset 0 1.5px 0 rgba(0,0,0,0.18);
+}
+.bv-hole[data-stack-index="0"] { top: 6px;  left:  4px; }
+.bv-hole[data-stack-index="1"] { top: 6px;  right: 4px; }
+.bv-hole[data-stack-index="2"] { bottom: 4px; left: 50%; transform: translateX(-50%); }
+
+/* new bin sliding in from above when the queue advances */
+@keyframes bvSlideIn {
+  from { transform: translateY(-32px); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+.bv-box--slide { animation: bvSlideIn 0.30s cubic-bezier(.18,.89,.32,1.28); }
+
+@keyframes bvPop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+.bv-box--pop { animation: bvPop 0.30s ease-out; }
+
+/* round buffer slots */
+.bv-buffers {
+  display: flex;
+  gap: 12px;
+}
+.bv-buffer {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #b6c1d2;
+  border: 2.5px solid #2a2a3a;
+  box-shadow: inset 0 2px 0 rgba(0,0,0,0.22);
+}
+.bv-buffer--filled {
+  background: #8e9bb0;
+}
+
+/* token layer is on top of everything so its absolute positions are simple */
+.bv-token-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 30;
+}
+.bv-token {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ccc;
+  border: 2.5px solid #2a2a3a;
+  box-shadow: 0 2px 0 #2a2a3a, inset 0 -2px 0 rgba(0,0,0,0.15);
+  transform: translate(-9999px, -9999px) translate(-50%, -50%) scale(0.4);
+  opacity: 0;
+  transition:
+    transform 0.32s cubic-bezier(.18,.89,.32,1.28),
+    opacity   0.18s linear;
+}
+.bv-token--in {
+  opacity: 1;
+  /* the inline transform set in JS overrides this once visible */
+}
+.bv-token--out {
+  opacity: 0;
+  transition:
+    transform 0.32s ease-in,
+    opacity   0.32s ease-in;
+}
+
 /* ---------- HUD ---------- */
 /* Minimal: a small menu button (top-left) + small counter (top-right).
    Restart / next live inside the pause panel. */

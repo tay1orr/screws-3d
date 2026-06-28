@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Game } from './game.js';
+import { BinView } from './2026-06-28-bin-view.js';
 import { resumeAudio } from './audio.js';
 
 // ---------- Renderer ----------
@@ -113,12 +114,40 @@ controls.rotateSpeed = 0.85;
 controls.target.set(0, 1.0, 0);
 controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
 
+// ---------- BinView (DOM/SVG collection UI) ----------
+const binView = new BinView(document.getElementById('bin-view'));
+
+// viewProj converts a DOM bin's pixel position into a world-space
+// THREE.Vector3 so the 3D screw can fly straight to the DOM target.
+// Travel a fixed distance along the camera ray so the screw stays at a
+// readable size regardless of where the bin sits on screen.
+const TARGET_FLIGHT_DISTANCE = 5.5;
+const _v2 = new THREE.Vector2();
+const _ray = new THREE.Raycaster();
+
+function screenToWorldAt(screenX, screenY, distance) {
+  _v2.set(
+    (screenX / window.innerWidth)  * 2 - 1,
+    -(screenY / window.innerHeight) * 2 + 1,
+  );
+  _ray.setFromCamera(_v2, camera);
+  return _ray.ray.origin.clone().addScaledVector(_ray.ray.direction, distance);
+}
+
+const viewProj = {
+  getTargetWorldPos(target) {
+    const pos = binView.getTargetScreenPos(target);
+    if (!pos) return new THREE.Vector3(0, 5, 0);
+    return screenToWorldAt(pos.x, pos.y, TARGET_FLIGHT_DISTANCE);
+  },
+};
+
 // ---------- Game ----------
 // IMPORTANT: do NOT call game.loadLevel() here. Loading dispatches
 // onCountChange / onStateChange callbacks that haven't been wired yet,
 // which is why the HUD used to show "0 / 0" until the first tap.
 // The initial load happens at the bottom of this file, after HUD setup.
-const game = new Game(scene, camera);
+const game = new Game(scene, camera, binView, viewProj);
 
 // ---------- Click vs Drag ----------
 const raycaster = new THREE.Raycaster();
@@ -178,39 +207,10 @@ function handleTap(e) {
   // else hit a plank first → the screw behind it is occluded, do nothing.
 }
 
-// ---------- Tray placement (responsive) ----------
-// Stage 2 still keeps the tray as a camera child so screw flight targets
-// stay in perspective world. But the tray now rescales and repositions
-// itself per viewport so the bins never clip off the top edge on mobile
-// portrait. The proposal's full orthographic-UI split is Stage 4 territory.
-const TRAY_DISTANCE = 3.6;
-const TRAY_NATIVE_WIDTH = 2.85;
-const TRAY_NATIVE_TOP_Y = 0.84;
-
-function updateTrayForViewport() {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  const aspect = w / h;
-  const vFov = camera.fov * Math.PI / 180;
-  const heightAtDist = 2 * TRAY_DISTANCE * Math.tan(vFov / 2);
-  const widthAtDist = heightAtDist * aspect;
-
-  // Portrait → tray takes most of the width; landscape → comfortable inset.
-  const isPortrait = aspect < 1;
-  const widthFrac = isPortrait ? 0.78 : 0.35;
-  const desiredW = Math.min(widthAtDist * widthFrac, 3.0);
-  const scale = desiredW / TRAY_NATIVE_WIDTH;
-
-  // Anchor the top edge of the tray ~8% below the top of the camera view,
-  // regardless of aspect ratio.
-  const topMarginFrac = 0.08;
-  const topY = heightAtDist / 2 - topMarginFrac * heightAtDist;
-  const positionY = topY - TRAY_NATIVE_TOP_Y * scale;
-
-  game.tray.group.position.set(0, positionY, -TRAY_DISTANCE);
-  game.tray.group.scale.setScalar(scale);
-}
-updateTrayForViewport();
+// Phase B: the tray is now in the DOM (BinView), sized in CSS, so the
+// old updateTrayForViewport() logic is gone. We still need to reposition
+// any existing head tokens whenever the bin DOM moves (resize / layout
+// shift), which is handled inside the resize listener below.
 
 // ---------- Camera auto-fit ----------
 // Frame the level's attached pieces so they're fully visible under the
@@ -269,8 +269,13 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-  updateTrayForViewport();
   fitCameraToLevel();
+  // After the bin DOM has reflowed, snap every existing head token to its
+  // new on-screen target position.
+  binView.reflowTokens((screwId) => {
+    for (const s of game.screws) if (s.id === screwId) return s.target;
+    return null;
+  });
 });
 
 // ---------- HUD ----------
