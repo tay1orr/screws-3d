@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-// ---------- Palette (warm orange/cream cartoon) ----------
+// ---------- Palette ----------
 export const SCREW_COLORS = {
   red:    0xff5252,
   blue:   0x3a8ee0,
@@ -15,23 +15,23 @@ export const SCREW_COLORS = {
 };
 
 export const HOUSE = {
-  foundation: 0xf6d8a0, // warm cream foundation
-  foundationDark: 0xd6a868,
-  wall:       0xfde0b0, // cream wall
-  wallAlt:    0xfacba1, // light peach
-  trim:       0xff9543, // orange trim
-  roof:       0xff8c42, // bright orange roof
-  roofDark:   0xc66b2c, // shadow
-  door:       0xff7a30, // strong orange door
+  foundation: 0xf6d8a0,
+  wall:       0xfde0b0,
+  wallAlt:    0xfacba1,
+  trim:       0xff9543,
+  roof:       0xff8c42,
+  roofDark:   0xc66b2c,
+  door:       0xff7a30,
   doorDark:   0xa84510,
-  window:     0xffd13a, // yellow glass
-  windowFrame:0xff8c42, // orange frame
-  chimney:    0xfff0d8, // off-white chimney
+  window:     0xffd13a,
+  windowFrame:0xff8c42,
+  chimney:    0xfff0d8,
   chimneyTop: 0xc66b2c,
-  grass:      0x7cd790,
+  innerFloor: 0xefc88a,
+  atticBeam:  0xb38247,
 };
 
-// ---------- Toon shading helpers ----------
+// ---------- Toon ----------
 let _gradMap = null;
 function gradientMap() {
   if (_gradMap) return _gradMap;
@@ -42,14 +42,14 @@ function gradientMap() {
   _gradMap.needsUpdate = true;
   return _gradMap;
 }
-
 function makeToonMat(color) {
   return new THREE.MeshToonMaterial({ color, gradientMap: gradientMap() });
 }
-
-// Soft outline: very thin, just a dark version of the surface tint
+function darken(hex, k) {
+  return new THREE.Color(hex).multiplyScalar(k).getHex();
+}
 function withOutline(mesh, scale = 1.012, color = null) {
-  const c = color ?? darken(getMeshTint(mesh), 0.45);
+  const c = color ?? darken(mesh.material?.color?.getHex?.() ?? 0x553311, 0.45);
   const outlineMat = new THREE.MeshBasicMaterial({ color: c, side: THREE.BackSide });
   const outline = new THREE.Mesh(mesh.geometry, outlineMat);
   outline.scale.setScalar(scale);
@@ -58,18 +58,10 @@ function withOutline(mesh, scale = 1.012, color = null) {
   return outline;
 }
 
-function getMeshTint(mesh) {
-  const m = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
-  return m?.color?.getHex() ?? 0x553311;
-}
-function darken(hex, k) {
-  return new THREE.Color(hex).multiplyScalar(k).getHex();
-}
-
 const _q = new THREE.Quaternion();
 const UP = new THREE.Vector3(0, 1, 0);
 
-// ---------- Screw ----------
+// ---------- Screw (smaller, lower-poly) ----------
 export class Screw {
   constructor(color, worldPos, normal) {
     this.color = color;
@@ -102,49 +94,48 @@ export class Screw {
     const g = new THREE.Group();
     const metal = makeToonMat(0xb8b6b2);
     const headMat = makeToonMat(this.colorHex);
-    headMat.emissive = new THREE.Color(this.colorHex).multiplyScalar(0.12);
+    headMat.emissive = new THREE.Color(this.colorHex).multiplyScalar(0.08);
     const dark = new THREE.MeshBasicMaterial({ color: darken(this.colorHex, 0.3) });
 
     // shaft
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.05, 0.38, 14), metal);
-    shaft.position.y = -0.20;
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.036, 0.26, 12), metal);
+    shaft.position.y = -0.13;
     shaft.castShadow = true;
     g.add(shaft);
 
     // tip
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.08, 12), metal);
-    tip.position.y = -0.44;
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.036, 0.06, 10), metal);
+    tip.position.y = -0.29;
     g.add(tip);
 
     // collar
-    const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.07, 0.035, 18), metal);
-    collar.position.y = 0.0;
+    const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.082, 0.05, 0.022, 14), metal);
+    collar.position.y = 0;
     g.add(collar);
 
-    // head — large, plastic cartoon look
-    const headR = 0.20;
-    const head = new THREE.Mesh(new THREE.CylinderGeometry(headR, headR, 0.10, 28), headMat);
-    head.position.y = 0.065;
+    // head — smaller (0.20 → 0.13)
+    const headR = 0.13;
+    const head = new THREE.Mesh(new THREE.CylinderGeometry(headR, headR, 0.07, 22), headMat);
+    head.position.y = 0.045;
     head.castShadow = true;
     head.userData.isHead = true;
     g.add(head);
 
     // dome
     const dome = new THREE.Mesh(
-      new THREE.SphereGeometry(headR, 26, 16, 0, Math.PI * 2, 0, Math.PI / 2.3),
+      new THREE.SphereGeometry(headR, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2.3),
       headMat
     );
-    dome.position.y = 0.115;
+    dome.position.y = 0.078;
     dome.scale.y = 0.36;
     g.add(dome);
 
-    // recessed cross slot (darker, no thick block — looks cleaner)
-    const slotMat = dark;
-    const s1 = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.02, 0.05), slotMat);
-    s1.position.y = 0.13;
+    // cross slot
+    const s1 = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.016, 0.034), dark);
+    s1.position.y = 0.088;
     g.add(s1);
-    const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.02, 0.24), slotMat);
-    s2.position.y = 0.13;
+    const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.034, 0.016, 0.16), dark);
+    s2.position.y = 0.088;
     g.add(s2);
 
     this._headMat = headMat;
@@ -160,7 +151,7 @@ export class Screw {
       this._headMat.emissive.setHex(0x000000);
     } else {
       this._headMat.color.copy(c);
-      this._headMat.emissive.copy(c).multiplyScalar(0.12);
+      this._headMat.emissive.copy(c).multiplyScalar(0.08);
     }
   }
 
@@ -185,12 +176,11 @@ export class Screw {
         const target = this.tray.getSlotWorldPos(this.slotIndex, this.stackIndex);
         this.targetPos = target;
         const mid = this.startPos.clone().lerp(target, 0.5);
-        mid.y = Math.max(this.startPos.y, target.y) + 1.5;
+        mid.y = Math.max(this.startPos.y, target.y) + 1.4;
         this.midPos = mid;
       }
       return;
     }
-
     if (this.state === 'flying') {
       this.flightTime += dt;
       const t = Math.min(this.flightTime / this.flightDur, 1);
@@ -213,7 +203,6 @@ export class Screw {
       }
       return;
     }
-
     if (this.state === 'clearing') {
       this.clearTime += dt;
       const t = Math.min(this.clearTime / 0.35, 1);
@@ -230,7 +219,7 @@ export class Screw {
   }
 }
 
-// ---------- Plank / Piece ----------
+// ---------- Plank ----------
 export class Plank {
   constructor(spec) {
     this.spec = spec;
@@ -248,8 +237,8 @@ export class Plank {
     const mainMat = makeToonMat(base);
     const topMat  = makeToonMat(top);
     const sideMat = makeToonMat(sideHex);
-
     const mats = [sideMat, sideMat, topMat, mainMat, mainMat, mainMat];
+
     this.mesh = new THREE.Mesh(
       new THREE.BoxGeometry(this.size.x, this.size.y, this.size.z),
       mats
@@ -259,8 +248,6 @@ export class Plank {
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;
     this.mesh.userData.plank = this;
-
-    // very subtle outline only — no thick cartoon line
     withOutline(this.mesh, 1.008, darken(base, 0.4));
   }
 
@@ -292,122 +279,136 @@ export class Plank {
 }
 
 // ---------- Slot Tray ----------
-// 7 slots laid out as 2 large bins on top + 5 small dots on bottom.
-// All slots are functionally identical: each holds up to 3 same-color screws,
-// then clears on match. The visual split mirrors the reference UI.
-const TOP_ROW    = 2;
-const BOTTOM_ROW = 5;
-const TOTAL_SLOTS = TOP_ROW + BOTTOM_ROW;
+// 2 active bins on top (color-locked) + 5 preview dots showing upcoming colors.
+// When an active bin fills with 3 same-color screws it clears and the next
+// queued color slides in.
+const ACTIVE_SLOTS = 2;
+const PREVIEW_DOTS = 5;
 
 export class SlotTray {
   constructor() {
-    this.slotCount = TOTAL_SLOTS;
     this.maxPerSlot = 3;
-    this.slots = new Array(TOTAL_SLOTS).fill(null);
+    this.slotCount = ACTIVE_SLOTS;
+    this.activeBins = [null, null];   // {color, screws[]}
+    this.queue = [];                  // upcoming colors after the 2 active
     this.group = new THREE.Group();
+    this.topBinMeshes = [];
+    this.previewDots = [];
     this._build();
   }
 
-  // kept for API compatibility — slot count is fixed
-  setSlotCount(_n) { this.reset(); }
-
-  _build() {
-    const trayMat   = makeToonMat(0xffffff);
-    const rimMat    = makeToonMat(HOUSE.trim);
-    const dotMat    = new THREE.MeshToonMaterial({ color: 0x9aa6b8, gradientMap: gradientMap() });
-    const dotBase   = new THREE.MeshToonMaterial({ color: 0x5e6878, gradientMap: gradientMap() });
-    const binShellMat = new THREE.MeshToonMaterial({ color: 0xf6efe2, gradientMap: gradientMap() });
-
-    // Top row: two rounded "bin" containers
-    for (let i = 0; i < TOP_ROW; i++) {
-      const x = (-0.5 + i) * 1.1;
-      // outer shell (rounded square look via slight bevel)
-      const shell = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.85, 0.5), binShellMat);
-      shell.position.set(x, 0.50, 0);
-      this.group.add(shell);
-      withOutline(shell, 1.025, 0x6b4a2a);
-      // rim border
-      const rim = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.10, 0.5), rimMat);
-      rim.position.set(x, 0.50 + 0.42, 0);
-      this.group.add(rim);
-      const rim2 = rim.clone();
-      rim2.position.set(x, 0.50 - 0.42, 0);
-      this.group.add(rim2);
-      // inner cylinder slot where screws stack
-      const inner = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.22, 0.22, 0.55, 24, 1, true),
-        new THREE.MeshToonMaterial({
-          color: 0xc3e0ff, gradientMap: gradientMap(),
-          transparent: true, opacity: 0.55,
-        })
-      );
-      inner.position.set(x, 0.50, 0.08);
-      this.group.add(inner);
-    }
-
-    // Bottom row: five small disc slots
-    for (let j = 0; j < BOTTOM_ROW; j++) {
-      const x = (-2 + j) * 0.42;
-      const ring = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.18, 0.18, 0.06, 24),
-        dotMat
-      );
-      ring.position.set(x, -0.15, 0);
-      this.group.add(ring);
-      const disc = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.12, 0.12, 0.04, 22),
-        dotBase
-      );
-      disc.position.set(x, -0.13, 0);
-      this.group.add(disc);
-    }
+  // ---- Queue management ----
+  setQueue(colors) {
+    const arr = Array.isArray(colors) ? colors.slice() : [];
+    this.activeBins[0] = arr[0] ? { color: arr[0], screws: [] } : null;
+    this.activeBins[1] = arr[1] ? { color: arr[1], screws: [] } : null;
+    this.queue = arr.slice(2);
+    this.updateVisuals();
   }
-
-  getSlotLocalPos(i, stack = 0) {
-    if (i < TOP_ROW) {
-      const x = (-0.5 + i) * 1.1;
-      return new THREE.Vector3(x, 0.30 + stack * 0.22, 0.08);
-    } else {
-      const j = i - TOP_ROW;
-      const x = (-2 + j) * 0.42;
-      return new THREE.Vector3(x, -0.05 + stack * 0.18, 0);
-    }
+  reset() {
+    this.activeBins = [null, null];
+    this.queue = [];
+    this.updateVisuals();
   }
+  // Compat shim for legacy callers
+  setSlotCount(_n) {}
+  get slots() { return this.activeBins; }
 
-  getSlotWorldPos(i, stack = 0) {
-    this.group.updateMatrixWorld(true);
-    return this.getSlotLocalPos(i, stack).applyMatrix4(this.group.matrixWorld);
-  }
-
+  // ---- Tap logic ----
   findSlotForColor(color) {
-    // Prefer reusing a slot already collecting this color
-    for (let i = 0; i < this.slotCount; i++) {
-      const s = this.slots[i];
-      if (s && s.color === color && s.screws.length < this.maxPerSlot) return i;
+    for (let i = 0; i < ACTIVE_SLOTS; i++) {
+      const b = this.activeBins[i];
+      if (b && b.color === color && b.screws.length < this.maxPerSlot) return i;
     }
-    // Else fill from top row first (visually primary), then bottom queue
-    for (let i = 0; i < this.slotCount; i++) if (!this.slots[i]) return i;
     return -1;
   }
   reserveSlot(screw) {
     const i = this.findSlotForColor(screw.color);
     if (i < 0) return -1;
-    if (!this.slots[i]) this.slots[i] = { color: screw.color, screws: [] };
-    this.slots[i].screws.push(screw);
+    this.activeBins[i].screws.push(screw);
     return i;
   }
   stackIndexFor(screw, slotIndex) {
-    return this.slots[slotIndex].screws.indexOf(screw);
+    return this.activeBins[slotIndex].screws.indexOf(screw);
   }
   checkMatch(i) {
-    const s = this.slots[i];
-    if (s && s.screws.length >= this.maxPerSlot) {
-      const screws = s.screws.slice();
-      this.slots[i] = null;
+    const b = this.activeBins[i];
+    if (b && b.screws.length >= this.maxPerSlot) {
+      const screws = b.screws.slice();
+      const next = this.queue.shift();
+      this.activeBins[i] = next ? { color: next, screws: [] } : null;
+      this.updateVisuals();
       return screws;
     }
     return null;
   }
-  isAllOccupied() { return this.slots.every(s => s !== null); }
-  reset() { this.slots = new Array(TOTAL_SLOTS).fill(null); }
+  isAllOccupied() {
+    return this.activeBins.every(b => b !== null);
+  }
+
+  // ---- 3D layout ----
+  _build() {
+    // Top row — 2 color-locked bins
+    for (let i = 0; i < ACTIVE_SLOTS; i++) {
+      const x = (i - 0.5) * 1.05;
+      const shellMat = new THREE.MeshToonMaterial({ color: 0xc8b89a, gradientMap: gradientMap() });
+      const shell = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.72, 0.46), shellMat);
+      shell.position.set(x, 0.42, 0);
+      this.group.add(shell);
+      withOutline(shell, 1.025, 0x4a3220);
+      this.topBinMeshes.push(shell);
+
+      // inner cream face (acts as a "tray plate" inside the bin)
+      const inner = new THREE.Mesh(
+        new THREE.BoxGeometry(0.62, 0.62, 0.04),
+        new THREE.MeshToonMaterial({ color: 0xfff4dc, gradientMap: gradientMap() })
+      );
+      inner.position.set(x, 0.42, 0.21);
+      this.group.add(inner);
+    }
+
+    // Bottom row — 5 preview dots
+    for (let j = 0; j < PREVIEW_DOTS; j++) {
+      const x = (j - 2) * 0.46;
+      const ring = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.17, 0.17, 0.045, 24),
+        new THREE.MeshToonMaterial({ color: 0x8e9bb0, gradientMap: gradientMap() })
+      );
+      ring.position.set(x, -0.10, 0);
+      this.group.add(ring);
+
+      const dot = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.13, 0.13, 0.05, 22),
+        new THREE.MeshToonMaterial({ color: 0xb6c1d2, gradientMap: gradientMap() })
+      );
+      dot.position.set(x, -0.07, 0);
+      this.group.add(dot);
+      this.previewDots.push(dot);
+    }
+  }
+
+  updateVisuals() {
+    for (let i = 0; i < ACTIVE_SLOTS; i++) {
+      const b = this.activeBins[i];
+      const shell = this.topBinMeshes[i];
+      if (!shell) continue;
+      shell.material.color.setHex(b ? SCREW_COLORS[b.color] : 0xc8b89a);
+    }
+    for (let j = 0; j < PREVIEW_DOTS; j++) {
+      const c = this.queue[j];
+      const dot = this.previewDots[j];
+      if (!dot) continue;
+      dot.material.color.setHex(c ? SCREW_COLORS[c] : 0xb6c1d2);
+    }
+  }
+
+  getSlotLocalPos(i, stack = 0) {
+    const x = (i - 0.5) * 1.05;
+    // 3 screws line up horizontally inside the bin, slightly in front of the inner plate
+    return new THREE.Vector3(x + (stack - 1) * 0.17, 0.42, 0.28);
+  }
+  getSlotWorldPos(i, stack = 0) {
+    this.group.updateMatrixWorld(true);
+    return this.getSlotLocalPos(i, stack).applyMatrix4(this.group.matrixWorld);
+  }
 }

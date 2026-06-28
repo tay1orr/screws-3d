@@ -14,10 +14,10 @@ export class Game {
     this.camera = camera;
 
     this.tray = new SlotTray();
-    // tray is a child of camera so it always sits in screen space — top of view
+    // tray is a child of camera so it always sits in screen space — visible upper area
     camera.add(this.tray.group);
-    this.tray.group.position.set(0, 1.55, -4.4);
-    this.tray.group.scale.set(0.85, 0.85, 0.85);
+    this.tray.group.position.set(0, 0.85, -3.6);
+    this.tray.group.scale.set(0.75, 0.75, 0.75);
 
     this.planks = [];
     this.screws = [];
@@ -51,10 +51,9 @@ export class Game {
     this.state = 'playing';
 
     const level = LEVELS[this.levelIdx];
-    // Support both array (legacy) and { slots, pieces } level format
     const pieces = Array.isArray(level) ? level : level.pieces;
-    const slotCount = Array.isArray(level) ? 3 : (level.slots ?? 3);
-    this.tray.setSlotCount(slotCount);
+    const binQueue = Array.isArray(level) ? [] : (level.binQueue ?? []);
+    this.tray.setQueue(binQueue);
 
     for (const ps of pieces) {
       const plank = new Plank(ps);
@@ -88,11 +87,12 @@ export class Game {
 
     for (const screw of this.screws) {
       if (screw.state !== 'attached') continue;
-      // Cast a ray from just above the screw head, along the outward normal,
-      // looking for any other plank that would prevent extraction.
-      const origin = screw.mesh.position.clone().addScaledVector(screw.normal, 0.18);
+      // Cast a ray along the outward normal looking for another plank that
+      // would block the extraction path. Small offset so we don't immediately
+      // hit the screw's own collar; small `far` so close pieces still count.
+      const origin = screw.mesh.position.clone().addScaledVector(screw.normal, 0.04);
       _ray.set(origin, screw.normal);
-      _ray.far = 3.0;
+      _ray.far = 2.5;
       const hits = _ray.intersectObjects(plankMeshes, false);
       let blocked = false;
       for (const h of hits) {
@@ -261,15 +261,13 @@ export class Game {
       return;
     }
 
-    // Lose: all slots occupied AND no remaining attached screw can fit anywhere
-    if (this.tray.isAllOccupied()) {
-      const slotColors = new Set(this.tray.slots.filter(Boolean).map(s => s.color));
-      const attached = this.attachedScrews();
-      const anyHasRoom = this.tray.slots.some(s =>
-        s && s.screws.length < this.tray.maxPerSlot
-          && attached.some(sc => sc.color === s.color));
-      const anyMatchable = attached.some(s => slotColors.has(s.color));
-      if (!anyMatchable || !anyHasRoom) {
+    // Lose: no accessible (unblocked) screw matches either active bin color
+    // i.e. player has no legal tap available — deadlock.
+    const attached = this.attachedScrews();
+    if (attached.length > 0) {
+      const accessible = attached.filter(s => !s.blocked);
+      const canTap = accessible.some(s => this.tray.findSlotForColor(s.color) >= 0);
+      if (!canTap) {
         this.state = 'lost';
         playLose();
         this._emit();
