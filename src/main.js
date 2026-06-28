@@ -148,17 +148,34 @@ function handleTap(e) {
   pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
   pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
-  const meshes = game.attachedScrews().map(s => s.mesh);
-  if (meshes.length === 0) return;
-  const hits = raycaster.intersectObjects(meshes, true);
-  for (const hit of hits) {
-    let o = hit.object;
-    while (o && !o.userData.screw) o = o.parent;
-    if (o && o.userData.screw) {
-      game.trySelectScrew(o.userData.screw);
-      break;
+
+  // Stage 4 occlusion: raycast against ALL interactive geometry — both
+  // attached planks AND attached screws — then only fire if the closest
+  // hit is a screw head. A plank in front means the screw is occluded
+  // and the tap should do nothing.
+  const meshes = [];
+  for (const p of game.planks) {
+    if (p.state === 'attached' || p.state === 'falling') {
+      meshes.push(p.mesh);
     }
   }
+  for (const s of game.attachedScrews()) {
+    meshes.push(s.mesh);
+  }
+  if (meshes.length === 0) return;
+
+  const hits = raycaster.intersectObjects(meshes, true);
+  if (hits.length === 0) return;
+
+  // Walk up from the closest hit to find what owns it.
+  let owner = hits[0].object;
+  while (owner && !owner.userData.screw && !owner.userData.plank) {
+    owner = owner.parent;
+  }
+  if (owner?.userData?.screw) {
+    game.trySelectScrew(owner.userData.screw);
+  }
+  // else hit a plank first → the screw behind it is occluded, do nothing.
 }
 
 // ---------- Tray placement (responsive) ----------
@@ -195,12 +212,65 @@ function updateTrayForViewport() {
 }
 updateTrayForViewport();
 
+// ---------- Camera auto-fit ----------
+// Frame the level's attached pieces so they're fully visible under the
+// tray UI band at the top. Called on level load and on window resize.
+const FIT_PADDING = 0.18;       // 18% extra space around the model
+const UI_TOP_FRAC = 0.22;       // ~22% of view height reserved for the tray
+const VIEW_DIR = new THREE.Vector3(0.55, 0.50, 0.95).normalize();
+
+function fitCameraToLevel() {
+  if (!game.planks.length) return;
+
+  const box = new THREE.Box3();
+  let any = false;
+  for (const plank of game.planks) {
+    if (plank.state === 'attached') {
+      box.expandByObject(plank.mesh);
+      any = true;
+    }
+  }
+  if (!any) return;
+
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+
+  // Shift the camera target DOWN a touch so the house sits in the
+  // lower 2/3 of the screen, leaving room for the tray.
+  center.y -= size.y * (UI_TOP_FRAC / 2);
+
+  const vFov = camera.fov * Math.PI / 180;
+  const effectiveVFov = vFov * (1 - UI_TOP_FRAC);
+  const aspect = window.innerWidth / window.innerHeight;
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
+
+  // Distance needed to fit each axis. Z extent is rolled into Y/X via
+  // the view direction's depth component, so we just pad generously.
+  const distH = (size.y / 2) / Math.tan(effectiveVFov / 2);
+  const distW = (size.x / 2) / Math.tan(hFov / 2);
+  const distZ = (size.z / 2) / Math.tan(Math.min(effectiveVFov, hFov) / 2);
+  const dist = Math.max(distH, distW, distZ) * (1 + FIT_PADDING);
+
+  camera.position.copy(center).addScaledVector(VIEW_DIR, dist);
+  controls.target.copy(center);
+  controls.minDistance = dist * 0.65;
+  controls.maxDistance = dist * 1.8;
+  controls.update();
+}
+
+// Wrap loadLevel so every level entry refits the camera.
+function loadLevelWithFit(idx) {
+  game.loadLevel(idx);
+  fitCameraToLevel();
+}
+
 // ---------- Resize ----------
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   updateTrayForViewport();
+  fitCameraToLevel();
 });
 
 // ---------- HUD ----------
@@ -217,16 +287,16 @@ const splash = document.getElementById('splash');
 const startBtn = document.getElementById('start-btn');
 
 restartBtn.addEventListener('click', () => {
-  game.loadLevel(game.levelIdx);
+  loadLevelWithFit(game.levelIdx);
   overlay.classList.add('hidden');
 });
 nextBtn.addEventListener('click', () => {
-  game.loadLevel(game.levelIdx + 1);
+  loadLevelWithFit(game.levelIdx + 1);
   overlay.classList.add('hidden');
 });
 overlayBtn.addEventListener('click', () => {
-  if (game.state === 'won') game.loadLevel(game.levelIdx + 1);
-  else game.loadLevel(game.levelIdx);
+  if (game.state === 'won') loadLevelWithFit(game.levelIdx + 1);
+  else loadLevelWithFit(game.levelIdx);
   overlay.classList.add('hidden');
 });
 startBtn.addEventListener('click', () => {
@@ -261,7 +331,7 @@ game.onStateChange = (state) => {
 };
 
 // ---------- Initial level load (callbacks are now wired) ----------
-game.loadLevel(0);
+loadLevelWithFit(0);
 
 // ---------- Loop ----------
 const clock = new THREE.Clock();

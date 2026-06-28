@@ -55,6 +55,9 @@ function withOutline(mesh, scale = 1.012, color = null) {
   const outline = new THREE.Mesh(mesh.geometry, outlineMat);
   outline.scale.setScalar(scale);
   outline.userData.isOutline = true;
+  // Outlines must never participate in raycasts — they'd create phantom
+  // hits in front of the real mesh and let the player tap through walls.
+  outline.raycast = () => {};
   mesh.add(outline);
   return outline;
 }
@@ -102,37 +105,36 @@ export class Screw {
     const dark = new THREE.MeshBasicMaterial({ color: darken(this.colorHex, 0.3) });
 
     // shaft
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.036, 0.26, 12), metal);
-    shaft.position.y = -0.13;
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.040, 0.030, 0.22, 12), metal);
+    shaft.position.y = -0.11;
     shaft.castShadow = true;
     g.add(shaft);
 
     // tip
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.036, 0.06, 10), metal);
-    tip.position.y = -0.29;
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.030, 0.05, 10), metal);
+    tip.position.y = -0.245;
     g.add(tip);
 
     // collar
-    const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.082, 0.05, 0.022, 14), metal);
+    const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.069, 0.042, 0.019, 14), metal);
     collar.position.y = 0;
     g.add(collar);
 
     // head — flat plastic cap (coin shape, no dome)
-    const headR = 0.13;
-    const headH = 0.05;
+    const headR = 0.110;
+    const headH = 0.044;
     const head = new THREE.Mesh(new THREE.CylinderGeometry(headR, headR, headH, 24), headMat);
-    head.position.y = 0.025;       // top face at y = 0.050
+    head.position.y = 0.022;        // top face at y = 0.044
     head.castShadow = true;
     head.userData.isHead = true;
     g.add(head);
 
-    // Cross slot — wide, dark, perched just above the head's top face so
-    // it always reads from any angle. Slightly thicker than before to
-    // survive distance shrinkage on mobile.
-    const slotW = 0.20;
-    const slotT = 0.018;
-    const slotZ = 0.042;
-    const slotY = 0.060;            // 0.010 above the head's top face
+    // Cross slot — perched just above the head's top face so it reads
+    // from any angle.
+    const slotW = 0.170;
+    const slotT = 0.016;
+    const slotZ = 0.036;
+    const slotY = 0.052;            // 0.008 above the head's top face
     const s1 = new THREE.Mesh(new THREE.BoxGeometry(slotW, slotT, slotZ), dark);
     s1.position.y = slotY;
     g.add(s1);
