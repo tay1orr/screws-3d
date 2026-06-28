@@ -188,6 +188,10 @@ export class Game {
     return this.screws.filter(s => s.state === 'attached');
   }
 
+  currentLevel() {
+    return LEVELS[this.levelIdx];
+  }
+
   _updateBlocking() {
     const plankMeshes = this.planks
       .filter(p => p.state === 'attached')

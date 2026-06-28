@@ -24,17 +24,20 @@ C:\Users\user\Documents\인공지능 기초\screws-3d
 node --check src\2026-06-28-bin-view.js
 node --check src\2026-06-28-collector-state.js
 node --check src\2026-06-28-level-validator.js
+node --check src\2026-06-28-heart-party.js
+node --check src\2026-06-28-progress-store.js
 node --check src\audio.js
 node --check src\game.js
 node --check src\levels.js
 node --check src\main.js
 node --check src\objects.js
 node tests\2026-06-28-run-game-rules.js
+node tests\2026-06-28-progress-store-tests.js
 git diff --check
 git status --short
 ```
 
-테스트는 `12/12 tests passed`여야 한다. 오류가 있으면 커밋하거나 푸시하지 말고 먼저 수정한다.
+테스트는 `12/12 tests passed`, `3/3 progress tests passed`여야 한다. 오류가 있으면 커밋하거나 푸시하지 말고 먼저 수정한다.
 
 ## 커밋과 푸시
 
@@ -43,7 +46,7 @@ git status --short
 ```powershell
 git add index.html styles.css README.md vercel.json src tests docs
 git status --short
-git commit -m "Polish Screwdom 3D gameplay and UI"
+git commit -m "Add creator heart easter egg and level progress foundation"
 git push origin master
 ```
 
@@ -59,6 +62,9 @@ git push origin master
 4. 임시 보관함은 정확히 5칸이다.
 5. 메뉴를 열면 게임이 실제로 멈추고 계속하기로 복귀한다.
 6. 브라우저 개발자 콘솔에 오류가 없다.
+7. 메뉴의 `제작자: taylorr` 버튼이 날짜 입력창을 연다.
+8. 틀린 날짜는 오류 문구와 흔들림만 보여준다.
+9. `20250511` 입력 시 메뉴가 닫히고 대량 하트·충격파·사운드가 재생된다.
 
 ## 이번 변경의 핵심
 
@@ -69,5 +75,8 @@ git push origin master
 - 캐스케이드와 GPU 자원 정리 개선
 - 카메라 안전 영역 피팅과 플로팅 배경 개선
 - 한글 UI와 HTML 구조 정상화
+- 구조물 확대·상향 배치와 구름·힌트 시인성 개선
+- 제작자 날짜 모달과 240개 하트 파티클 이스터에그
+- 레벨 메타데이터·진행도 저장·잠금 해제 기반
 
 현재 레벨 구조물은 오두막이다. 원작 홍보 이미지의 풍차 레벨로 교체하는 작업은 이번 배포 안정화 범위에 포함하지 않는다.

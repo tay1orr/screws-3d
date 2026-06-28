@@ -49,8 +49,25 @@
       <button id="pause-resume" class="primary-btn">계속하기</button>
       <button id="pause-restart" class="secondary-btn">레벨 다시 시작</button>
       <button id="pause-next" class="secondary-btn" disabled>다음 레벨</button>
+      <button id="creator-trigger" class="creator-btn" type="button">
+        제작자: taylorr <span aria-hidden="true">♥</span>
+      </button>
     </div>
   </div>
+
+  <div id="creator-panel" class="hidden" role="dialog" aria-modal="true" aria-labelledby="creator-title">
+    <form id="creator-form" class="secret-card" autocomplete="off">
+      <button id="creator-close" class="secret-close" type="button" aria-label="날짜 입력 닫기">×</button>
+      <div class="secret-heart" aria-hidden="true">♥</div>
+      <h2 id="creator-title">날짜를 입력하세요</h2>
+      <p>우리만 아는 여덟 자리 날짜</p>
+      <input id="creator-date" name="creator-date" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="YYYYMMDD" aria-describedby="creator-message">
+      <button class="primary-btn secret-submit" type="submit">확인</button>
+      <p id="creator-message" class="secret-message" aria-live="polite"></p>
+    </form>
+  </div>
+
+  <div id="heart-party" aria-hidden="true"></div>
 
   <div id="overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
     <div class="overlay-card">
@@ -61,7 +78,7 @@
     </div>
   </div>
 
-  <div id="splash">
+  <div id="splash" aria-hidden="false">
     <div class="splash-card">
       <div class="splash-icon" aria-hidden="true">
         <div class="splash-screw"></div>

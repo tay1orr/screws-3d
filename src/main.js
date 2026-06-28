@@ -2,7 +2,10 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { Game } from './game.js';
 import { BinView } from './2026-06-28-bin-view.js';
-import { resumeAudio } from './audio.js';
+import { createHeartParty } from './2026-06-28-heart-party.js';
+import { createProgressStore } from './2026-06-28-progress-store.js';
+import { playHeartParty, resumeAudio } from './audio.js';
+import { LEVEL_SUMMARY } from './levels.js';
 
 // ---------- Renderer ----------
 const canvas = document.getElementById('canvas');
@@ -75,7 +78,7 @@ scene.add(rim);
 // ---------- Floating play island + soft cloud layer ----------
 const groundGroup = new THREE.Group();
 const grassMat = new THREE.MeshToonMaterial({ color: 0x7cd790 });
-const grass = new THREE.Mesh(new THREE.CircleGeometry(3.55, 64), grassMat);
+const grass = new THREE.Mesh(new THREE.CircleGeometry(2.80, 64), grassMat);
 grass.rotation.x = -Math.PI / 2;
 grass.position.y = -0.301;
 grass.receiveShadow = true;
@@ -83,7 +86,7 @@ groundGroup.add(grass);
 
 // Rounded cream underside makes the stage read as a floating toy island.
 const islandBase = new THREE.Mesh(
-  new THREE.CylinderGeometry(3.42, 3.0, 0.48, 64),
+  new THREE.CylinderGeometry(2.70, 2.35, 0.48, 64),
   new THREE.MeshToonMaterial({ color: 0xe9d6aa })
 );
 islandBase.position.y = -0.58;
@@ -91,7 +94,7 @@ islandBase.receiveShadow = true;
 groundGroup.add(islandBase);
 
 const ring = new THREE.Mesh(
-  new THREE.RingGeometry(3.42, 3.55, 64),
+  new THREE.RingGeometry(2.70, 2.80, 64),
   new THREE.MeshBasicMaterial({ color: 0x4a8a55, side: THREE.DoubleSide })
 );
 ring.rotation.x = -Math.PI / 2;
@@ -100,7 +103,7 @@ groundGroup.add(ring);
 
 // Soft shadow plane beyond grass
 const shadowPlane = new THREE.Mesh(
-  new THREE.CircleGeometry(4.8, 64),
+  new THREE.CircleGeometry(4.1, 64),
   new THREE.ShadowMaterial({ opacity: 0.22 })
 );
 shadowPlane.rotation.x = -Math.PI / 2;
@@ -114,7 +117,7 @@ const cloudMaterial = new THREE.MeshBasicMaterial({
 });
 const cloudGeo = new THREE.SphereGeometry(1, 20, 12);
 for (const [x, y, z, scale] of [
-  [-8, 5.3, -12, 1.4], [8.5, 4.3, -14, 1.8], [-10, 1.8, -8, 1.1], [11, 0.7, -10, 1.3],
+  [-13, 3.8, -14, 0.90], [13, 3.0, -16, 1.05], [-12, 0.8, -10, 0.78], [14, 0.3, -12, 0.88],
 ]) {
   const cloud = new THREE.Group();
   for (const [ox, oy, s] of [[-0.9, 0, .72], [0, .18, 1], [.95, -.02, .66]]) {
@@ -175,6 +178,7 @@ const viewProj = {
 // which is why the HUD used to show "0 / 0" until the first tap.
 // The initial load happens at the bottom of this file, after HUD setup.
 const game = new Game(scene, camera, binView, viewProj);
+const progress = createProgressStore(LEVEL_SUMMARY.length);
 
 // ---------- Click vs Drag ----------
 const raycaster = new THREE.Raycaster();
@@ -280,7 +284,7 @@ function fitCameraToLevel() {
   };
   if (safe.bottom <= safe.top + 120) safe.top = Math.min(140, window.innerHeight * .25);
   const vFov = camera.fov * Math.PI / 180;
-  const desiredCenterY = (safe.top + safe.bottom) / 2;
+  const desiredCenterY = safe.top + (safe.bottom - safe.top) * 0.38;
 
   function placeAtDistance(distance) {
     camera.position.copy(center).addScaledVector(VIEW_DIR, distance);
@@ -312,16 +316,19 @@ function fitCameraToLevel() {
     if (fits(mid)) high = mid;
     else low = mid;
   }
-  const dist = high * 1.06;
+  // The mathematical box includes invisible perspective extremes. A tighter
+  // presentation matches the reference and keeps the puzzle touch targets big.
+  const dist = high * 0.72;
   placeAtDistance(dist);
-  controls.minDistance = dist * 0.9;
-  controls.maxDistance = dist * 1.65;
+  controls.minDistance = dist * 0.92;
+  controls.maxDistance = dist * 1.55;
   controls.update();
 }
 
 // Wrap loadLevel so every level entry refits the camera.
 function loadLevelWithFit(idx) {
   game.loadLevel(idx);
+  updateLevelLabels();
   fitCameraToLevel();
   requestAnimationFrame(fitCameraToLevel);
 }
@@ -349,6 +356,13 @@ const pauseLevelLabel = document.getElementById('pause-level-label');
 const pauseResumeBtn = document.getElementById('pause-resume');
 const pauseRestartBtn = document.getElementById('pause-restart');
 const pauseNextBtn = document.getElementById('pause-next');
+const creatorTrigger = document.getElementById('creator-trigger');
+const creatorPanel = document.getElementById('creator-panel');
+const creatorForm = document.getElementById('creator-form');
+const creatorClose = document.getElementById('creator-close');
+const creatorDate = document.getElementById('creator-date');
+const creatorMessage = document.getElementById('creator-message');
+const heartParty = createHeartParty(document.getElementById('heart-party'));
 const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayMsg = document.getElementById('overlay-msg');
@@ -357,9 +371,19 @@ const overlayBtn = document.getElementById('overlay-btn');
 const splash = document.getElementById('splash');
 const startBtn = document.getElementById('start-btn');
 
+function levelLabel(index = game.levelIdx) {
+  const meta = LEVEL_SUMMARY[index];
+  return meta ? `Level ${index + 1} · ${meta.name}` : `Level ${index + 1}`;
+}
+
+function updateLevelLabels() {
+  pauseLevelLabel.textContent = levelLabel();
+}
+
 function openPause() {
   if (game.state !== 'playing') return;
-  pauseLevelLabel.textContent = `Level ${game.levelIdx + 1}`;
+  updateLevelLabels();
+  pauseNextBtn.disabled = !progress.isUnlocked(game.levelIdx + 1);
   game.setPaused(true);
   controls.enabled = false;
   document.body.classList.add('game-paused');
@@ -380,19 +404,69 @@ pauseRestartBtn.addEventListener('click', () => {
   overlay.classList.add('hidden');
 });
 pauseNextBtn.addEventListener('click', () => {
+  if (!progress.isUnlocked(game.levelIdx + 1)) return;
   loadLevelWithFit(game.levelIdx + 1);
   closePause();
   overlay.classList.add('hidden');
 });
 
+function openCreatorSecret() {
+  creatorDate.value = '';
+  creatorMessage.textContent = '';
+  creatorForm.classList.remove('secret-card--error');
+  creatorPanel.classList.remove('hidden');
+  requestAnimationFrame(() => creatorDate.focus());
+}
+
+function closeCreatorSecret() {
+  creatorPanel.classList.add('hidden');
+  creatorDate.blur();
+}
+
+creatorTrigger.addEventListener('click', openCreatorSecret);
+creatorClose.addEventListener('click', closeCreatorSecret);
+creatorPanel.addEventListener('pointerdown', (event) => {
+  if (event.target === creatorPanel) closeCreatorSecret();
+});
+creatorDate.addEventListener('input', () => {
+  creatorDate.value = creatorDate.value.replace(/\D/g, '').slice(0, 8);
+  creatorMessage.textContent = '';
+});
+creatorForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  if (creatorDate.value !== '20250511') {
+    creatorMessage.textContent = '그 날짜가 아닌 것 같아요.';
+    creatorForm.classList.remove('secret-card--error');
+    void creatorForm.offsetWidth;
+    creatorForm.classList.add('secret-card--error');
+    creatorDate.select();
+    return;
+  }
+
+  creatorMessage.textContent = '';
+  closeCreatorSecret();
+  closePause();
+  playHeartParty();
+  heartParty.burst();
+  navigator.vibrate?.([65, 35, 90, 40, 140]);
+});
+window.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !creatorPanel.classList.contains('hidden')) {
+    closeCreatorSecret();
+  }
+});
+
 overlayBtn.addEventListener('click', () => {
-  if (game.state === 'won') loadLevelWithFit(game.levelIdx + 1);
+  const hasNext = game.levelIdx + 1 < LEVEL_SUMMARY.length;
+  if (game.state === 'won' && hasNext) loadLevelWithFit(game.levelIdx + 1);
   else loadLevelWithFit(game.levelIdx);
   overlay.classList.add('hidden');
 });
 startBtn.addEventListener('click', () => {
   resumeAudio();
   splash.classList.add('hidden');
+  splash.setAttribute('aria-hidden', 'true');
+  setTimeout(() => splash.classList.add('splash--gone'), 450);
 });
 
 game.onCountChange = (remaining, total) => {
@@ -405,18 +479,21 @@ let overlayTimer = null;
 game.onStateChange = (state) => {
   if (overlayTimer !== null) clearTimeout(overlayTimer);
   overlayTimer = null;
-  pauseLevelLabel.textContent = `Level ${game.levelIdx + 1}`;
+  updateLevelLabels();
   screwCountText.textContent = `${game.attachedScrews().length} / ${game.totalScrews}`;
   if (state === 'won') {
+    const { hasNext } = progress.complete(game.levelIdx);
     overlayEmoji.textContent = '🎉';
     overlayTitle.textContent = '집을 모두 분해했어요!';
-    overlayMsg.textContent = '완벽해요! 다음 레벨로 가볼까요?';
-    overlayBtn.textContent = '다음 레벨';
+    overlayMsg.textContent = hasNext
+      ? '완벽해요! 다음 레벨이 열렸어요.'
+      : '현재 준비된 모든 레벨을 완료했어요!';
+    overlayBtn.textContent = hasNext ? '다음 레벨' : '다시 플레이';
     overlayTimer = setTimeout(() => {
       overlayTimer = null;
       overlay.classList.remove('hidden');
     }, 700);
-    pauseNextBtn.disabled = false;
+    pauseNextBtn.disabled = !hasNext;
   } else if (state === 'lost') {
     overlayEmoji.textContent = '🧰';
     overlayTitle.textContent = 'Game Over';
@@ -458,5 +535,6 @@ globalThis.__SCREWDOM_DEBUG__ = {
     boxes: game.collector.activeBoxes.map(box => box
       ? { color: box.color, count: box.screwIds.length }
       : null),
+    progress: progress.snapshot(),
   }),
 };

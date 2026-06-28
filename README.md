@@ -22,6 +22,13 @@
 - 나사 누르기: 접근 가능한 나사 풀기
 - 왼쪽 위 메뉴: 일시정지, 재시작
 
+## 현재 구현된 확장 기반
+
+- 레벨 이름·난이도·설명 메타데이터
+- 브라우저 내부 진행도 저장과 다음 레벨 잠금 해제
+- 마지막 레벨에서 같은 레벨을 ‘다음 레벨’로 잘못 표시하지 않는 완료 처리
+- 제작자 메뉴와 비공개 날짜 이스터에그
+
 ## 로컬 실행
 
 별도 설치나 빌드 과정이 필요하지 않습니다.
@@ -37,6 +44,7 @@ python -m http.server 8765
 
 ```powershell
 node tests\2026-06-28-run-game-rules.js
+node tests\2026-06-28-progress-store-tests.js
 ```
 
 ## Vercel 배포
@@ -45,7 +53,7 @@ node tests\2026-06-28-run-game-rules.js
 
 ```powershell
 git add index.html styles.css README.md vercel.json src tests docs
-git commit -m "Polish Screwdom 3D gameplay and UI"
+git commit -m "Add creator heart easter egg and level progress foundation"
 git push origin master
 ```
 
@@ -66,10 +74,13 @@ src/
   2026-06-28-collector-state.js    상자·버퍼·자동 이동 규칙 엔진
   2026-06-28-level-validator.js    레벨 데이터 검증
   2026-06-28-bin-view.js           상자·버퍼·나사 토큰 UI
+  2026-06-28-heart-party.js        하트 파티클 이스터에그
+  2026-06-28-progress-store.js     레벨 진행도 로컬 저장
 tests/
   2026-06-28-game-rules.html       브라우저 규칙 테스트
   2026-06-28-game-rules.js         규칙 테스트 본체
   2026-06-28-run-game-rules.js     명령줄 테스트 실행기
+  2026-06-28-progress-store-tests.js 진행도 저장 테스트
 docs/                              구현 보고서와 전달 문서
 ```
 

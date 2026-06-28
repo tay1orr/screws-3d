@@ -36,6 +36,12 @@ const FRONT_GAP   =  0.22;          // distance the door / window sits in front 
 // Multi-layer reveals: door blocks centre front-wall screw, window frame
 // blocks the window glass screws, gable roof blocks the inner floor.
 const COTTAGE = {
+  id: 'cottage-01',
+  name: '다층 오두막',
+  world: 1,
+  difficulty: 10,
+  recommendedOrder: 1,
+  description: '가려진 나사와 여러 방향 탐색을 모두 사용하는 보스형 레벨',
   binQueue: [
     // 28 bins, color shares match the totals above
     'red',    'blue',   'green',  'yellow', 'orange', 'purple',
@@ -308,3 +314,13 @@ const COTTAGE = {
 // L2/L3 are temporarily hidden per the proposal — only the rebuilt cottage
 // counts as content for this iteration.
 export const LEVELS = [COTTAGE];
+
+export const LEVEL_SUMMARY = LEVELS.map((level, index) => ({
+  index,
+  id: level.id ?? `level-${index + 1}`,
+  name: level.name ?? `Level ${index + 1}`,
+  world: level.world ?? 1,
+  difficulty: level.difficulty ?? 1,
+  description: level.description ?? '',
+  screwCount: level.pieces.reduce((sum, piece) => sum + (piece.screws?.length ?? 0), 0),
+}));

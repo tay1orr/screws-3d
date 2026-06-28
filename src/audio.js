@@ -107,3 +107,31 @@ export function playBlocked() {
   tone({ freq: 180, type: 'square', attack: 0.005, decay: 0.04, sustain: 0.0, release: 0.06, peak: 0.10 });
   tone({ freq: 140, type: 'square', start: 0.05, attack: 0.005, decay: 0.04, sustain: 0.0, release: 0.06, peak: 0.10 });
 }
+
+export function playHeartParty() {
+  resumeAudio();
+  noise({ duration: 0.32, peak: 0.12, filterFreq: 4200, filterQ: 0.7 });
+  const chords = [
+    [523.25, 659.25, 783.99],
+    [587.33, 739.99, 880.00],
+    [659.25, 830.61, 987.77],
+    [783.99, 987.77, 1174.66],
+  ];
+  chords.forEach((chord, wave) => {
+    chord.forEach((freq, note) => {
+      tone({
+        freq,
+        type: note === 0 ? 'sine' : 'triangle',
+        start: wave * 0.15 + note * 0.018,
+        attack: 0.012,
+        decay: 0.05,
+        sustain: 0.13,
+        release: 0.34,
+        peak: note === 0 ? 0.19 : 0.11,
+        slideTo: freq * 1.08,
+        slideEnd: 0.35,
+      });
+    });
+  });
+  tone({ freq: 1046.5, type: 'sine', start: 0.66, attack: 0.02, decay: 0.08, sustain: 0.25, release: 0.65, peak: 0.24 });
+}

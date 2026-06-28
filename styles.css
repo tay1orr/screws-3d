@@ -282,14 +282,21 @@ body.game-paused #hint {
 
 #hint {
   position: fixed;
-  left: 0; right: 0;
+  left: 50%;
   bottom: max(20px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 7px 13px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.78);
+  box-shadow: 0 2px 10px rgba(42,42,58,0.12);
   text-align: center;
   font-size: 13px;
-  font-weight: 600;
-  color: rgba(42,42,58,0.65);
+  font-weight: 700;
+  color: rgba(42,42,58,0.82);
   pointer-events: none;
-  animation: fadeOut 6s 2s ease-out forwards;
+  animation: fadeOut 6s 4s ease-out forwards;
 }
 @keyframes fadeOut { to { opacity: 0; } }
 
@@ -330,6 +337,167 @@ body.game-paused #hint {
   margin-bottom: 10px;
 }
 .pause-card button:last-child { margin-bottom: 0; }
+
+.creator-btn {
+  width: 100%;
+  margin-top: 7px;
+  padding: 9px 12px;
+  border: 0;
+  background: transparent;
+  color: #725b78;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .15px;
+  cursor: pointer;
+  box-shadow: none;
+  transition: color .15s ease, transform .15s ease;
+}
+.creator-btn span {
+  display: inline-block;
+  margin-left: 3px;
+  color: #ff4f83;
+  transition: transform .2s cubic-bezier(.18,.89,.32,1.5);
+}
+.creator-btn:hover { color: #ff356f; transform: translateY(-1px); }
+.creator-btn:hover span { transform: scale(1.35) rotate(-8deg); }
+.creator-btn:focus-visible { outline: 3px solid rgba(255,79,131,.35); outline-offset: 2px; border-radius: 10px; }
+
+/* ---------- Creator secret ---------- */
+#creator-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(31, 24, 51, .62);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+  animation: overlayIn .18s ease-out;
+}
+#creator-panel.hidden { display: none; }
+
+.secret-card {
+  position: relative;
+  width: min(340px, 100%);
+  padding: 29px 26px 24px;
+  text-align: center;
+  background: linear-gradient(160deg, #fff 0%, #fff5f9 100%);
+  border: 3px solid #2a2a3a;
+  border-radius: 25px;
+  box-shadow: 0 7px 0 #2a2a3a, 0 22px 50px rgba(0,0,0,.24);
+  animation: cardPop .35s cubic-bezier(.18,.89,.32,1.28);
+}
+.secret-card--error { animation: secretShake .32s ease; }
+@keyframes secretShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-10px) rotate(-1deg); }
+  50% { transform: translateX(9px) rotate(1deg); }
+  75% { transform: translateX(-5px); }
+}
+.secret-close {
+  position: absolute;
+  top: 11px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(42,42,58,.08);
+  color: #2a2a3a;
+  font-size: 25px;
+  line-height: 1;
+  cursor: pointer;
+}
+.secret-heart {
+  color: #ff4f83;
+  font-size: 49px;
+  line-height: 1;
+  text-shadow: 0 4px 0 #2a2a3a;
+  animation: secretHeartbeat 1.05s ease-in-out infinite;
+}
+@keyframes secretHeartbeat {
+  0%, 100% { transform: scale(1); }
+  14% { transform: scale(1.18); }
+  28% { transform: scale(1); }
+  42% { transform: scale(1.1); }
+}
+.secret-card h2 { margin-top: 10px; font-size: 22px; }
+.secret-card > p:not(.secret-message) { margin-top: 6px; color: #776d7c; font-size: 13px; }
+#creator-date {
+  display: block;
+  width: 100%;
+  margin: 19px 0 13px;
+  padding: 13px 15px;
+  border: 2.5px solid #2a2a3a;
+  border-radius: 14px;
+  background: #fff;
+  color: #2a2a3a;
+  font: 800 20px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 4px;
+  text-align: center;
+  user-select: text;
+  -webkit-user-select: text;
+  touch-action: manipulation;
+  outline: none;
+}
+#creator-date:focus { border-color: #ff4f83; box-shadow: 0 0 0 4px rgba(255,79,131,.18); }
+#creator-date::placeholder { color: #b7acba; letter-spacing: 2px; }
+.secret-submit { width: 100%; }
+.secret-message {
+  min-height: 19px;
+  margin-top: 12px;
+  color: #e33262;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+/* ---------- Heart party ---------- */
+#heart-party {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  overflow: hidden;
+  pointer-events: none;
+  visibility: hidden;
+}
+#heart-party.heart-party--active { visibility: visible; }
+.heart-particle {
+  position: absolute;
+  left: var(--heart-x);
+  top: var(--heart-y);
+  color: var(--heart-color);
+  font-size: var(--heart-size);
+  line-height: 1;
+  opacity: 0;
+  filter: drop-shadow(0 3px 0 rgba(42,42,58,.42));
+  will-change: transform, opacity;
+  animation: heartBurst var(--heart-duration) cubic-bezier(.12,.75,.26,1) var(--heart-delay) forwards;
+}
+@keyframes heartBurst {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.12) rotate(0deg); }
+  7% { opacity: 1; transform: translate(-50%, -50%) scale(1.28) rotate(12deg); }
+  48% { opacity: 1; transform: translate(calc(-50% + var(--heart-mx)), calc(-50% + var(--heart-my))) scale(1) rotate(var(--heart-mid-rotation)); }
+  82% { opacity: .95; }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--heart-dx)), calc(-50% + var(--heart-dy))) scale(.72) rotate(var(--heart-rotation)); }
+}
+.heart-shockwave {
+  position: absolute;
+  left: 50%;
+  top: 54%;
+  width: 42px;
+  height: 42px;
+  border: 7px solid rgba(255,255,255,.9);
+  border-radius: 50%;
+  opacity: 0;
+  box-shadow: 0 0 28px #ff79a8, inset 0 0 24px #ff79a8;
+  animation: heartShockwave 1.1s ease-out var(--ring-delay) forwards;
+}
+@keyframes heartShockwave {
+  0% { opacity: .9; transform: translate(-50%, -50%) scale(.2); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(10); }
+}
 
 .secondary-btn {
   background: #fff;
@@ -424,6 +592,7 @@ body.game-paused #hint {
   opacity: 0;
   pointer-events: none;
 }
+#splash.splash--gone { display: none; }
 
 .splash-card {
   text-align: center;
@@ -487,4 +656,16 @@ body.game-paused #hint {
   color: #fff;
   text-shadow: 0 2px 0 rgba(0,0,0,0.2);
   margin-bottom: 30px;
+}
+
+@media (max-width: 430px) {
+  #hint { bottom: max(14px, env(safe-area-inset-bottom)); font-size: 12px; }
+  .pause-card { padding: 24px 24px 20px; }
+  .secret-card { padding: 27px 22px 21px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .heart-particle { animation-duration: 1.5s; }
+  .heart-shockwave { animation-duration: .8s; }
+  .secret-heart { animation: none; }
 }
