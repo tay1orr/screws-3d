@@ -355,7 +355,7 @@ window.addEventListener('resize', () => {
 const screwCountText = document.getElementById('screw-count-text');
 const menuBtn = document.getElementById('menu');
 const hintBtn = document.getElementById('hint-button');
-const hint = document.getElementById('hint');
+const hintBtnLabel = document.getElementById('hint-button-label');
 const pausePanel = document.getElementById('pause-panel');
 const pauseLevelLabel = document.getElementById('pause-level-label');
 const pauseResumeBtn = document.getElementById('pause-resume');
@@ -381,32 +381,27 @@ const splash = document.getElementById('splash');
 const startBtn = document.getElementById('start-btn');
 const splashLevelsBtn = document.getElementById('splash-levels');
 
-let hintIndex = 0;
-let hintTimer = null;
+const MAX_HINTS = 3;
+let hintsRemaining = MAX_HINTS;
+
+function updateHintButton() {
+  hintBtnLabel.textContent = `힌트 ${hintsRemaining}/${MAX_HINTS}`;
+  hintBtn.disabled = hintsRemaining <= 0;
+  hintBtn.setAttribute('aria-label', `힌트 보기, ${hintsRemaining}회 남음`);
+}
 
 function resetHint() {
-  hintIndex = 0;
-  if (hintTimer !== null) window.clearTimeout(hintTimer);
-  hintTimer = null;
-  hint.classList.remove('hint--visible');
-  hint.setAttribute('aria-hidden', 'true');
+  hintsRemaining = MAX_HINTS;
+  game.clearHint();
+  updateHintButton();
 }
 
 function showNextHint() {
-  const level = game.currentLevel();
-  const messages = level?.hints?.length
-    ? level.hints
-    : [level?.tutorial ?? '화면을 돌려 가려진 나사를 찾고, 활성 상자 색부터 모아보세요.'];
-  hint.textContent = messages[hintIndex % messages.length];
-  hintIndex = (hintIndex + 1) % messages.length;
-  hint.classList.add('hint--visible');
-  hint.setAttribute('aria-hidden', 'false');
-  if (hintTimer !== null) window.clearTimeout(hintTimer);
-  hintTimer = window.setTimeout(() => {
-    hint.classList.remove('hint--visible');
-    hint.setAttribute('aria-hidden', 'true');
-    hintTimer = null;
-  }, 5200);
+  if (hintsRemaining <= 0) return;
+  const target = game.showHint();
+  if (!target) return;
+  hintsRemaining--;
+  updateHintButton();
 }
 
 function levelLabel(index = game.levelIdx) {
@@ -649,6 +644,11 @@ globalThis.__SCREWDOM_DEBUG__ = {
     boxes: game.collector.activeBoxes.map(box => box
       ? { color: box.color, count: box.screwIds.length }
       : null),
+    hintsRemaining,
+    hintedScrewId: game.screws.find(screw => screw.hinted)?.id ?? null,
+    waitingParts: game.planks
+      .filter(plank => plank.state === 'attached' && plank.unfastened)
+      .map(plank => plank.spec?.id ?? null),
     progress: progress.snapshot(),
   }),
 };

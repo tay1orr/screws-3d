@@ -79,6 +79,8 @@ export class Screw {
 
     this.state = 'attached';
     this.blocked = false;
+    this.hinted = false;
+    this.hintTime = 0;
     this.plank = null;
     this.tray = null;
     // target = { type:'box', boxIndex, stackIndex } | { type:'buffer', slotIndex }
@@ -158,21 +160,68 @@ export class Screw {
     rim.position.y = 0.042;
     g.add(rim);
 
+    // Hint halo. It lives in the screw's local plane, so it remains aligned
+    // with wall, roof and floor screws at every camera angle.
+    const hintMat = new THREE.MeshBasicMaterial({
+      color: 0xffdf45,
+      transparent: true,
+      opacity: 0.95,
+      depthTest: true,
+      depthWrite: false,
+    });
+    const hintRing = new THREE.Mesh(new THREE.TorusGeometry(headR * 1.42, 0.018, 8, 32), hintMat);
+    hintRing.rotation.x = Math.PI / 2;
+    hintRing.position.y = 0.058;
+    hintRing.renderOrder = 20;
+    hintRing.visible = false;
+    g.add(hintRing);
+
     this._headMat = headMat;
+    this._hintRing = hintRing;
+    this._hintMat = hintMat;
     return g;
+  }
+
+  _applyVisualState() {
+    const c = new THREE.Color(this.colorHex);
+    if (this.hinted) {
+      this._headMat.color.setHex(0xffdf45);
+      this._headMat.emissive.setHex(0xffc400);
+      this._hintRing.visible = true;
+    } else if (this.blocked) {
+      this._headMat.color.copy(c).multiplyScalar(0.55);
+      this._headMat.emissive.setHex(0x000000);
+      this._hintRing.visible = false;
+    } else {
+      this._headMat.color.copy(c);
+      this._headMat.emissive.copy(c).multiplyScalar(0.08);
+      this._hintRing.visible = false;
+    }
   }
 
   setBlocked(b) {
     if (this.blocked === b) return;
     this.blocked = b;
-    const c = new THREE.Color(this.colorHex);
     if (b) {
-      this._headMat.color.copy(c).multiplyScalar(0.55);
-      this._headMat.emissive.setHex(0x000000);
-    } else {
-      this._headMat.color.copy(c);
-      this._headMat.emissive.copy(c).multiplyScalar(0.08);
+      this.hinted = false;
+      this.hintTime = 0;
     }
+    this._applyVisualState();
+  }
+
+  showHint(duration = 4.2) {
+    if (this.state !== 'attached' || this.blocked) return false;
+    this.hinted = true;
+    this.hintTime = duration;
+    this._applyVisualState();
+    return true;
+  }
+
+  clearHint() {
+    if (!this.hinted) return;
+    this.hinted = false;
+    this.hintTime = 0;
+    this._applyVisualState();
   }
 
   // viewProj.getTargetWorldPos(target) → THREE.Vector3 in world space.
@@ -180,6 +229,7 @@ export class Screw {
   // the perspective camera, so the 3D screw flies straight to the DOM
   // bin's pixel coordinates regardless of camera angle or viewport size.
   startUnscrew(viewProj, target) {
+    this.clearHint();
     this.viewProj = viewProj;
     this.target = target;
     this.state = 'spinning';
@@ -188,6 +238,13 @@ export class Screw {
   }
 
   update(dt) {
+    if (this.hinted && this.state === 'attached') {
+      this.hintTime -= dt;
+      const pulse = 1 + Math.sin(this.hintTime * 10) * 0.18;
+      this._hintRing.scale.setScalar(pulse);
+      this._hintMat.opacity = 0.62 + Math.sin(this.hintTime * 10) * 0.28;
+      if (this.hintTime <= 0) this.clearHint();
+    }
     if (this.state === 'spinning') {
       this.spinTime += dt;
       this.mesh.rotateOnAxis(UP, dt * 26);
@@ -237,6 +294,7 @@ export class Plank {
     this.rotation = new THREE.Euler().fromArray(spec.rot);
     this.screws = [];
     this.state = 'attached';
+    this.unfastened = false;
     this.vel = new THREE.Vector3();
     this.angVel = new THREE.Vector3();
 
@@ -278,10 +336,12 @@ export class Plank {
   removeScrew(s) {
     const i = this.screws.indexOf(s);
     if (i >= 0) this.screws.splice(i, 1);
-    if (this.screws.length === 0 && this.state === 'attached') this.startFall();
+    if (this.screws.length === 0 && this.state === 'attached') this.unfastened = true;
   }
   startFall() {
+    if (this.state !== 'attached') return;
     this.state = 'falling';
+    this.unfastened = false;
     this.vel.set((Math.random() - 0.5) * 1.4, 0.85, (Math.random() - 0.5) * 1.4);
     this.angVel.set(
       (Math.random() - 0.5) * 3.6,

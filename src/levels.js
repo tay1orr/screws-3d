@@ -56,6 +56,7 @@ const COTTAGE = {
   pieces: [
     // ===== 5 deck planks =====
     P({
+      id: 'deck-1', blockedBy: ['front-wall', 'back-wall', 'left-wall', 'right-wall', 'inner-floor', 'garden'],
       size: [0.62, DECK_H, 3.40],
       pos:  [-1.36, DECK_Y, 0], rot: [0, 0, 0],
       color: HOUSE.foundation,
@@ -65,6 +66,7 @@ const COTTAGE = {
       s('green', [0, DECK_H/2 + 0.01, -1.55]),
     ]),
     P({
+      id: 'deck-2', blockedBy: ['front-wall', 'back-wall', 'left-wall', 'right-wall', 'inner-floor', 'garden'],
       size: [0.62, DECK_H, 3.40],
       pos:  [-0.68, DECK_Y, 0], rot: [0, 0, 0],
       color: HOUSE.foundation,
@@ -74,6 +76,7 @@ const COTTAGE = {
       s('purple', [0, DECK_H/2 + 0.01, -1.55]),
     ]),
     P({
+      id: 'deck-3', blockedBy: ['front-wall', 'back-wall', 'left-wall', 'right-wall', 'inner-floor', 'garden'],
       size: [0.62, DECK_H, 3.40],
       pos:  [ 0.00, DECK_Y, 0], rot: [0, 0, 0],
       color: HOUSE.foundation,
@@ -83,6 +86,7 @@ const COTTAGE = {
       s('green', [0, DECK_H/2 + 0.01, -1.55]),
     ]),
     P({
+      id: 'deck-4', blockedBy: ['front-wall', 'back-wall', 'left-wall', 'right-wall', 'inner-floor', 'garden'],
       size: [0.62, DECK_H, 3.40],
       pos:  [ 0.68, DECK_Y, 0], rot: [0, 0, 0],
       color: HOUSE.foundation,
@@ -92,6 +96,7 @@ const COTTAGE = {
       s('purple', [0, DECK_H/2 + 0.01, -1.55]),
     ]),
     P({
+      id: 'deck-5', blockedBy: ['front-wall', 'back-wall', 'left-wall', 'right-wall', 'inner-floor', 'garden'],
       size: [0.62, DECK_H, 3.40],
       pos:  [ 1.36, DECK_Y, 0], rot: [0, 0, 0],
       color: HOUSE.foundation,
@@ -105,6 +110,8 @@ const COTTAGE = {
     // Front wall — the middle-lower screw is positioned inside the door's
     // x/y range so the door blocks it.
     P({
+      id: 'front-wall',
+      blockedBy: ['roof-front', 'roof-rear', 'front-trim', 'door', 'window-frame', 'window-glass'],
       size: [WALL_W, WALL_H, WALL_T],
       pos:  [0, WALL_Y, HALF], rot: [0, 0, 0],
       color: HOUSE.wall,
@@ -118,6 +125,7 @@ const COTTAGE = {
     ]),
     // Back wall
     P({
+      id: 'back-wall', blockedBy: ['roof-front', 'roof-rear', 'back-trim'],
       size: [WALL_W, WALL_H, WALL_T],
       pos:  [0, WALL_Y, -HALF], rot: [0, 0, 0],
       color: HOUSE.wall,
@@ -131,6 +139,7 @@ const COTTAGE = {
     ]),
     // Left wall
     P({
+      id: 'left-wall', blockedBy: ['roof-front', 'roof-rear', 'left-trim'],
       size: [WALL_T, WALL_H, SIDE_DEPTH],
       pos:  [-HALF, WALL_Y, 0], rot: [0, 0, 0],
       color: HOUSE.wallAlt,
@@ -144,6 +153,7 @@ const COTTAGE = {
     ]),
     // Right wall
     P({
+      id: 'right-wall', blockedBy: ['roof-front', 'roof-rear', 'right-trim'],
       size: [WALL_T, WALL_H, SIDE_DEPTH],
       pos:  [ HALF, WALL_Y, 0], rot: [0, 0, 0],
       color: HOUSE.wallAlt,
@@ -158,6 +168,7 @@ const COTTAGE = {
 
     // ===== 4 wall trim strips (decorative bands on outside) =====
     P({
+      id: 'front-trim',
       size: [WALL_W, 0.12, 0.05],
       pos:  [0, 1.30, HALF + 0.05], rot: [0, 0, 0],
       color: HOUSE.trim,
@@ -166,6 +177,7 @@ const COTTAGE = {
       s('blue', [ 0.80, 0, 0.03], [0, 0, 1]),
     ]),
     P({
+      id: 'back-trim',
       size: [WALL_W, 0.12, 0.05],
       pos:  [0, 1.30, -HALF - 0.05], rot: [0, 0, 0],
       color: HOUSE.trim,
@@ -174,6 +186,7 @@ const COTTAGE = {
       s('yellow', [ 0.80, 0, -0.03], [0, 0, -1]),
     ]),
     P({
+      id: 'left-trim',
       size: [0.05, 0.12, SIDE_DEPTH],
       pos:  [-HALF - 0.05, 1.30, 0], rot: [0, 0, 0],
       color: HOUSE.trim,
@@ -182,6 +195,7 @@ const COTTAGE = {
       s('purple', [-0.03, 0,  0.80], [-1, 0, 0]),
     ]),
     P({
+      id: 'right-trim',
       size: [0.05, 0.12, SIDE_DEPTH],
       pos:  [ HALF + 0.05, 1.30, 0], rot: [0, 0, 0],
       color: HOUSE.trim,
@@ -254,6 +268,7 @@ const COTTAGE = {
     // The middle-lower front wall screw lies inside this volume → it's
     // blocked until the door's own 4 screws come out.
     P({
+      id: 'door',
       size: [0.62, 1.02, 0.08],
       pos:  [0, 0.40, HALF + FRONT_GAP],
       rot:  [0, 0, 0],
@@ -270,6 +285,7 @@ const COTTAGE = {
     // The frame is in front of the glass — its 3 glass screws are blocked
     // until the frame comes off.
     P({
+      id: 'window-frame',
       size: [0.62, 0.50, 0.08],
       pos:  [0, 1.18, HALF + FRONT_GAP],
       rot:  [0, 0, 0],
@@ -281,6 +297,7 @@ const COTTAGE = {
       s('purple', [ 0.00,-0.18, 0.05], [0, 0, 1]),
     ]),
     P({
+      id: 'window-glass', blockedBy: ['window-frame'],
       size: [0.44, 0.34, 0.04],
       pos:  [0, 1.18, HALF + FRONT_GAP - 0.07],
       rot:  [0, 0, 0],
@@ -294,6 +311,7 @@ const COTTAGE = {
 
     // ===== inner floor (visible only after both roof panels come down) =====
     P({
+      id: 'inner-floor', blockedBy: ['roof-front', 'roof-rear'],
       size: [2.60, 0.10, 2.60],
       pos:  [0, 0.07, 0], rot: [0, 0, 0],
       color: HOUSE.innerFloor,
@@ -309,6 +327,7 @@ const COTTAGE = {
 
     // ===== garden planter (decorative, always accessible) =====
     P({
+      id: 'garden',
       size: [0.55, 0.32, 0.55],
       pos:  [-2.15, 0.06, 1.05], rot: [0, 0, 0],
       color: HOUSE.garden,

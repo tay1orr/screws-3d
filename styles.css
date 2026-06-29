@@ -26,8 +26,7 @@ html, body {
 #canvas:active { cursor: grabbing; }
 
 body.game-paused .bv-box,
-body.game-paused .bv-token,
-body.game-paused #hint {
+body.game-paused .bv-token {
   animation-play-state: paused !important;
 }
 
@@ -262,6 +261,7 @@ body.game-paused #hint {
 }
 .hint-button:hover { transform: translateY(-1px); box-shadow: 0 4px 0 #2a2a3a; background: #fff0a2; }
 .hint-button:active { transform: translateY(2px); box-shadow: 0 1px 0 #2a2a3a; }
+.hint-button:disabled { opacity: .48; cursor: default; transform: none; box-shadow: 0 2px 0 #2a2a3a; }
 
 /* legacy class kept for the splash / overlay buttons */
 .icon-btn {
@@ -312,33 +312,6 @@ body.game-paused #hint {
   font-weight: 800;
   letter-spacing: 0.3px;
   color: #2a2a3a;
-}
-
-#hint {
-  position: fixed;
-  left: 50%;
-  bottom: max(20px, env(safe-area-inset-bottom));
-  transform: translateX(-50%);
-  width: max-content;
-  max-width: calc(100vw - 32px);
-  padding: 7px 13px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.78);
-  box-shadow: 0 2px 10px rgba(42,42,58,0.12);
-  text-align: center;
-  font-size: 13px;
-  font-weight: 700;
-  color: rgba(42,42,58,0.82);
-  pointer-events: none;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity .18s ease, transform .18s ease, visibility 0s linear .18s;
-}
-#hint.hint--visible {
-  opacity: 1;
-  visibility: visible;
-  transform: translateX(-50%) translateY(-4px);
-  transition-delay: 0s;
 }
 
 /* ---------- Pause panel ---------- */
@@ -785,7 +758,6 @@ body.game-paused #hint {
 }
 
 @media (max-width: 430px) {
-  #hint { bottom: max(14px, env(safe-area-inset-bottom)); font-size: 12px; }
   .pause-card { padding: 24px 24px 20px; }
   .secret-card { padding: 27px 22px 21px; }
   .level-panel-card { padding: 27px 17px 19px; }

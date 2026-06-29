@@ -5,7 +5,9 @@ import {
   CollectorState, TARGET_BOX, TARGET_BUFFER,
 } from './2026-06-28-collector-state.js';
 import { validateLevel } from './2026-06-28-level-validator.js';
-import { hasAttachedPartDependency } from './2026-06-29-part-dependencies.js';
+import {
+  canReleaseUnfastenedPart,
+} from './2026-06-29-part-dependencies.js';
 import {
   playClick, playUnscrew, playSlot, playMatch,
   playWin, playLose, playThud, playBlocked,
@@ -212,14 +214,10 @@ export class Game {
 
     for (const screw of this.screws) {
       if (screw.state !== 'attached') continue;
-      let blocked = hasAttachedPartDependency(screw.plank, this.planks);
+      let blocked = false;
 
-      // Structural dependencies take priority. Raycasts still handle pieces
-      // that physically cover a screw but do not have an explicit hierarchy.
-      if (blocked) {
-        screw.setBlocked(true);
-        continue;
-      }
+      // A dependency delays the part's fall, not removal of a visible screw.
+      // Only real geometry in front of the screw can block interaction.
       const origin = screw.mesh.position.clone().addScaledVector(screw.normal, 0.04);
       _ray.set(origin, screw.normal);
       _ray.far = 2.5;
@@ -229,6 +227,81 @@ export class Game {
       }
       screw.setBlocked(blocked);
     }
+  }
+
+  _releaseReadyPlanks() {
+    let released = 0;
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const plank of this.planks) {
+        if (!canReleaseUnfastenedPart(plank, this.planks)) continue;
+        plank.startFall();
+        released++;
+        changed = true;
+      }
+    }
+    if (released > 0) {
+      this._setTimer(() => playThud(), 280);
+      this._updateBlocking();
+    }
+    return released;
+  }
+
+  _isScrewVisibleFromCamera(screw) {
+    const target = screw.mesh.position.clone().addScaledVector(screw.normal, 0.055);
+    const direction = target.clone().sub(this.camera.position);
+    const distance = direction.length();
+    if (distance <= 0.001) return false;
+    direction.normalize();
+
+    const meshes = [];
+    for (const plank of this.planks) {
+      if (plank.state === 'attached' || plank.state === 'falling') meshes.push(plank.mesh);
+    }
+    for (const candidate of this.screws) {
+      if (candidate.state === 'attached') meshes.push(candidate.mesh);
+    }
+    _ray.set(this.camera.position, direction);
+    _ray.near = 0;
+    _ray.far = distance + 0.25;
+    const hits = _ray.intersectObjects(meshes, true);
+    if (hits.length === 0) return false;
+    let owner = hits[0].object;
+    while (owner && !owner.userData.screw && !owner.userData.plank) owner = owner.parent;
+    return owner?.userData?.screw === screw;
+  }
+
+  clearHint() {
+    for (const screw of this.screws) screw.clearHint?.();
+  }
+
+  showHint() {
+    if (this.state !== 'playing' || this.paused) return null;
+    this.clearHint();
+    this._updateBlocking();
+    const visible = this.screws.filter(screw =>
+      screw.state === 'attached'
+      && !screw.blocked
+      && this._isScrewVisibleFromCamera(screw)
+    );
+    if (visible.length === 0) return null;
+
+    const activeColors = new Set(this.collector.activeBoxes
+      .filter(box => box && box.screwIds.length < this.collector.boxCapacity)
+      .map(box => box.color));
+    const useful = visible.filter(screw => activeColors.has(screw.color));
+    const candidates = useful.length > 0 ? useful : visible;
+    const forward = new THREE.Vector3();
+    this.camera.getWorldDirection(forward);
+    candidates.sort((a, b) => {
+      const dirA = a.mesh.position.clone().sub(this.camera.position).normalize();
+      const dirB = b.mesh.position.clone().sub(this.camera.position).normalize();
+      return dirB.dot(forward) - dirA.dot(forward);
+    });
+
+    const target = candidates[0];
+    return target.showHint(4.2) ? target : null;
   }
 
   // Logical collector reservations are synchronous, so animation work never
@@ -263,10 +336,7 @@ export class Game {
     playUnscrew();
     screw.startUnscrew(this.viewProj, target);
     screw.plank.removeScrew(screw);
-
-    if (screw.plank.state === 'falling') {
-      this._setTimer(() => playThud(), 280);
-    }
+    this._releaseReadyPlanks();
   }
 
   _shake(screw) {
