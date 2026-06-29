@@ -53,8 +53,11 @@ export const TWIN_BRIDGE_MANOR_LEVEL = buildLayeredLevel({
     ],
     [
       sidePart('l11-left-outer', [0.16, 1.02, 2.08], [-1.98, 1.34, 0], L11.wallAlt, -1),
-      sidePart('l11-left-inner', [0.16, 1.02, 2.08], [-0.26, 1.34, 0], L11.wall, 1),
-      sidePart('l11-right-inner', [0.16, 1.02, 2.08], [0.26, 1.34, 0], L11.wallAlt, -1),
+      // Face the inner-wall screws toward the outer shells. The former
+      // inward-facing pair raycast into each other and could never both be
+      // removed after structural locking was enabled.
+      sidePart('l11-left-inner', [0.16, 1.02, 2.08], [-0.26, 1.34, 0], L11.wall, -1),
+      sidePart('l11-right-inner', [0.16, 1.02, 2.08], [0.26, 1.34, 0], L11.wallAlt, 1),
       sidePart('l11-right-outer', [0.16, 1.02, 2.08], [1.98, 1.34, 0], L11.wall, 1),
       frontPart('l11-mid-front', [3.96, 0.82, 0.16], [0, 1.24, 1.02], L11.bridge),
       backPart('l11-mid-back', [3.96, 0.82, 0.16], [0, 1.24, -1.02], L11.wallAlt),
@@ -120,7 +123,9 @@ export const CROSS_CORRIDOR_WORKSHOP_LEVEL = buildLayeredLevel({
     [
       ...l12MainRoof,
       ...l12CrossRoof,
-      topPart('l12-front-awning', [2.20, 0.18, 0.64], [0, 1.82, 1.58], L12.trim, [-0.16, 0, 0]),
+      // Tilt outward so the centre screw does not raycast into the corridor
+      // front panel that structurally waits for this awning to fall.
+      topPart('l12-front-awning', [2.20, 0.18, 0.64], [0, 1.82, 1.82], L12.trim, [0.16, 0, 0]),
     ],
     [
       frontPart('l12-upper-front', [3.52, 0.86, 0.16], [0, 2.22, 1.08], L12.wall),
@@ -184,7 +189,7 @@ export const MIDNIGHT_DOUBLE_FORTRESS_LEVEL = buildLayeredLevel({
   tutorial: '버퍼가 두 칸뿐입니다. 현재 상자 색이 아니면 한 번만 실수해도 다음 선택이 강제로 제한됩니다.',
   hints: [
     '맨 위 두 첨탑을 함께 끝낸 뒤 세 개의 왕관 잠금을 순서대로 정리하세요.',
-    '다섯 지붕 다음에는 탑 껍질, 외벽, 내부 성채가 각각 별도 층으로 남습니다.',
+    '왕관 다음에는 탑 껍질, 다섯 지붕, 외벽, 내부 성채가 각각 별도 층으로 남습니다.',
     '버퍼 두 칸을 모두 다른 색으로 채우지 마세요. 현재 상자 두 색은 항상 여러 방향에 하나씩 있습니다.',
   ],
   activeBoxCount: 2,
@@ -200,17 +205,20 @@ export const MIDNIGHT_DOUBLE_FORTRESS_LEVEL = buildLayeredLevel({
       topPart('l13-right-crown', [0.82, 0.28, 0.82], [0.82, 3.86, 0], L13.trim),
     ],
     [
+      // The exposed tower bands sit above the main roof and therefore must
+      // be removed first. The former tall, lower-layer walls pierced the roof
+      // and permanently covered its rear screws.
+      frontPart('l13-left-tower-front', [1.24, 0.40, 0.16], [-0.82, 3.82, 0.64], L13.wall),
+      backPart('l13-left-tower-back', [1.24, 0.40, 0.16], [-0.82, 3.82, -0.64], L13.wallAlt),
+      frontPart('l13-right-tower-front', [1.24, 0.40, 0.16], [0.82, 3.82, 0.64], L13.wallAlt),
+      backPart('l13-right-tower-back', [1.24, 0.40, 0.16], [0.82, 3.82, -0.64], L13.wall),
+      sidePart('l13-left-tower-side', [0.16, 0.40, 1.22], [-1.44, 3.82, 0], L13.wallAlt, -1),
+      sidePart('l13-right-tower-side', [0.16, 0.40, 1.22], [1.44, 3.82, 0], L13.wall, 1),
+    ],
+    [
       ...l13MainRoof,
       ...l13TowerCaps,
       topPart('l13-ridge-seal', [1.18, 0.16, 0.34], [0, 3.57, -0.10], L13.crown),
-    ],
-    [
-      frontPart('l13-left-tower-front', [1.24, 1.38, 0.16], [-0.82, 3.06, 0.64], L13.wall),
-      backPart('l13-left-tower-back', [1.24, 1.38, 0.16], [-0.82, 3.06, -0.64], L13.wallAlt),
-      frontPart('l13-right-tower-front', [1.24, 1.38, 0.16], [0.82, 3.06, 0.64], L13.wallAlt),
-      backPart('l13-right-tower-back', [1.24, 1.38, 0.16], [0.82, 3.06, -0.64], L13.wall),
-      sidePart('l13-left-tower-side', [0.16, 1.38, 1.22], [-1.44, 3.06, 0], L13.wallAlt, -1),
-      sidePart('l13-right-tower-side', [0.16, 1.38, 1.22], [1.44, 3.06, 0], L13.wall, 1),
     ],
     [
       frontPart('l13-outer-front', [3.88, 0.94, 0.18], [0, 2.12, 1.34], L13.wall),
@@ -245,7 +253,7 @@ export const MIDNIGHT_DOUBLE_FORTRESS_LEVEL = buildLayeredLevel({
       topPart('l13-base-6', [0.66, 0.24, 3.32], [1.65, 0.12, -0.10], L13.base),
     ],
   ],
-  layerBins: [rotate(1, 2), rotate(4, 3), rotate(0, 5), rotate(3, 6), rotate(6, 6), rotate(2, 6), rotate(5, 6), rotate(1, 6)],
+  layerBins: [rotate(1, 2), rotate(4, 3), rotate(0, 6), rotate(3, 5), rotate(6, 6), rotate(2, 6), rotate(5, 6), rotate(1, 6)],
 });
 
 export const MASTER_LEVELS = [

@@ -196,7 +196,11 @@ export const L_SHAPED_MANOR_LEVEL = buildLayeredLevel({
     [
       ...l8MainRoof,
       ...l8WingRoof,
-      topPart('l8-entry-awning', [1.48, 0.16, 0.72], [0.55, 1.54, 1.58], L8.trim, [-0.18, 0, 0]),
+      // The positive X tilt points the screw normals away from the upper
+      // front wall. With the former negative tilt, the orange screw ray hit
+      // that wall while the wall itself waited for this awning to fall,
+      // creating an unavoidable 37/54 circular lock.
+      topPart('l8-entry-awning', [1.48, 0.16, 0.72], [0.55, 1.54, 1.58], L8.trim, [0.18, 0, 0]),
     ],
     [
       frontPart('l8-upper-front', [3.10, 0.82, 0.16], [0.25, 1.72, 1.25], L8.wall),
@@ -283,7 +287,7 @@ export const FINAL_INNER_FRAME_LEVEL = buildLayeredLevel({
   id: 'inner-frame-finale-10',
   name: '자정빛 이중 골조 저택',
   paletteName: 'midnight-finale',
-  description: '외벽 안에 한 번 더 숨은 골조가 있는 최종 저택입니다. 84개의 나사가 네 방향과 다섯 구조층에 분산됩니다.',
+  description: '외벽 안에 한 번 더 숨은 골조가 있는 최종 저택입니다. 84개의 나사가 네 방향과 여섯 구조층에 분산됩니다.',
   tutorial: '버퍼는 세 칸뿐입니다. 현재 상자 두 색이 여러 부품에 하나씩 섞여 있으니, 층마다 세 번의 색 묶음을 끝까지 계획하세요.',
   hints: [
     '첨탑과 굴뚝을 먼저 함께 정리해야 다섯 개 지붕 잠금이 풀립니다.',
@@ -298,6 +302,13 @@ export const FINAL_INNER_FRAME_LEVEL = buildLayeredLevel({
       topPart('l10-chimney', [0.40, 0.78, 0.40], [1.22, 3.52, -0.28], L10.trim),
     ],
     [
+      // Only the exposed tower band sits above the roof. These walls must be
+      // removed before the roof layer; placing the former tall walls below
+      // the roof created a mutual geometry/dependency lock.
+      frontPart('l10-tower-front', [1.16, 0.40, 0.16], [-0.18, 3.82, 0.58], L10.crown),
+      backPart('l10-tower-back', [1.16, 0.40, 0.16], [-0.18, 3.82, -0.58], L10.crown),
+    ],
+    [
       ...l10MainRoof,
       ...l10CrossRoof,
       topPart('l10-ridge-lock', [1.32, 0.18, 0.42], [-0.18, 3.62, 0.02], L10.crown),
@@ -307,8 +318,6 @@ export const FINAL_INNER_FRAME_LEVEL = buildLayeredLevel({
       backPart('l10-outer-back', [3.65, 0.92, 0.16], [0, 2.16, -1.38], L10.wallAlt),
       sidePart('l10-outer-left', [0.16, 0.92, 2.60], [-1.82, 2.16, 0], L10.wallAlt, -1),
       sidePart('l10-outer-right', [0.16, 0.92, 2.60], [1.82, 2.16, 0], L10.wall, 1),
-      frontPart('l10-tower-front', [1.16, 1.28, 0.16], [-0.18, 3.02, 0.58], L10.crown),
-      backPart('l10-tower-back', [1.16, 1.28, 0.16], [-0.18, 3.02, -0.58], L10.crown),
       topPart('l10-balcony', [2.34, 0.22, 0.64], [0, 1.72, 1.72], L10.trim),
     ],
     [
@@ -330,7 +339,7 @@ export const FINAL_INNER_FRAME_LEVEL = buildLayeredLevel({
       topPart('l10-base-7', [0.54, 0.22, 3.02], [1.62, 0.20, 0], L10.base),
     ],
   ],
-  layerBins: [rotate(4, 2), rotate(6, 5), rotate(2, 7), rotate(5, 7), rotate(1, 7)],
+  layerBins: [rotate(4, 2), rotate(6, 2), rotate(1, 5), rotate(3, 5), rotate(5, 7), rotate(1, 7)],
 });
 
 export const ELITE_LEVELS = [

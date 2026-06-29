@@ -72,7 +72,7 @@ function verifyColorAmbiguity(level) {
 const cases = [
   [L_SHAPED_MANOR_LEVEL, 54, 4, 4],
   [CROSS_TOWER_LEVEL, 72, 5, 4],
-  [FINAL_INNER_FRAME_LEVEL, 84, 5, 3],
+  [FINAL_INNER_FRAME_LEVEL, 84, 6, 3],
 ];
 
 for (const [level, screwCount, depth, bufferCapacity] of cases) {
