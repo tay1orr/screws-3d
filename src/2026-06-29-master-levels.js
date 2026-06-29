@@ -86,7 +86,10 @@ const L12 = {
   trim: 0xf1d59a, bridge: 0x5f9b8b, base: 0x705c50, inner: 0x8c6b82,
 };
 const l12MainRoof = gableZ('l12-main-roof', 0, -0.32, 3.52, 2.30, 2.70, 1.08, [L12.roof, L12.roofAlt]);
-const l12CrossRoof = gableX('l12-cross-roof', 0.18, 0.38, 2.20, 2.08, 2.60, 0.92, [L12.roofAlt, L12.roof]);
+// Keep the workshop's cross-gable silhouette while separating both roof
+// volumes vertically. The compact upper gable starts where the main ridge
+// ends, so its panels touch the main roof instead of cutting through it.
+const l12CrossRoof = gableX('l12-cross-roof', 0, -0.10, 1.36, 1.02, 3.94, 0.38, [L12.roofAlt, L12.roof]);
 
 export const CROSS_CORRIDOR_WORKSHOP_LEVEL = buildLayeredLevel({
   id: 'cross-corridor-workshop-12',
@@ -106,13 +109,13 @@ export const CROSS_CORRIDOR_WORKSHOP_LEVEL = buildLayeredLevel({
   bufferCapacity: 3,
   layers: [
     [
-      topPart('l12-clock-lock', [0.58, 0.62, 0.58], [-0.48, 4.00, -0.10], L12.trim),
-      topPart('l12-stack-lock', [0.46, 0.78, 0.46], [1.10, 3.56, -0.36], L12.bridge),
+      topPart('l12-clock-lock', [0.58, 0.62, 0.58], [-0.44, 4.66, -0.10], L12.trim),
+      topPart('l12-stack-lock', [0.46, 0.78, 0.46], [0.70, 4.74, -0.10], L12.bridge),
     ],
     [
-      topPart('l12-crown-left', [0.76, 0.22, 0.62], [-0.72, 3.54, -0.06], L12.inner),
-      topPart('l12-crown-right', [0.76, 0.22, 0.62], [0.72, 3.54, -0.06], L12.trim),
-      topPart('l12-corridor-key', [1.74, 0.18, 0.42], [0.12, 3.28, 0.54], L12.bridge),
+      topPart('l12-crown-left', [0.58, 0.16, 0.44], [-0.48, 4.16, -0.10], L12.inner, [0, 0, 0.42]),
+      topPart('l12-crown-right', [0.58, 0.16, 0.44], [0.48, 4.16, -0.10], L12.trim, [0, 0, -0.42]),
+      topPart('l12-corridor-key', [0.26, 0.14, 1.24], [0, 4.35, -0.10], L12.bridge),
     ],
     [
       ...l12MainRoof,
@@ -161,8 +164,14 @@ const L13 = {
   wall: 0x66617c, wallAlt: 0x4b465f, roof: 0x211d32, roofAlt: 0x382d4d,
   trim: 0xd3a74f, crown: 0xa94f66, base: 0x4a4140, inner: 0x48677c,
 };
-const l13MainRoof = gableZ('l13-main-roof', 0, -0.10, 3.88, 2.82, 2.82, 1.22, [L13.roof, L13.roofAlt]);
-const l13CrossRoof = gableX('l13-cross-roof', 0, 0.10, 2.50, 2.22, 2.76, 1.04, [L13.roofAlt, L13.roof]);
+// A single clean gable sits on the outer walls. The former full-size cross
+// gable intersected the main panels and produced an X-shaped roof. Two small
+// tower caps now bridge the dormer towers without cutting through the roof.
+const l13MainRoof = gableZ('l13-main-roof', 0, -0.10, 3.88, 2.82, 2.62, 0.92, [L13.roof, L13.roofAlt]);
+const l13TowerCaps = [
+  topPart('l13-left-tower-cap', [1.20, 0.16, 0.82], [-0.82, 3.79, 0.02], L13.roofAlt, [0.10, 0, 0]),
+  topPart('l13-right-tower-cap', [1.20, 0.16, 0.82], [0.82, 3.79, -0.02], L13.roof, [-0.10, 0, 0]),
+];
 
 export const MIDNIGHT_DOUBLE_FORTRESS_LEVEL = buildLayeredLevel({
   id: 'midnight-double-fortress-13',
@@ -192,8 +201,8 @@ export const MIDNIGHT_DOUBLE_FORTRESS_LEVEL = buildLayeredLevel({
     ],
     [
       ...l13MainRoof,
-      ...l13CrossRoof,
-      topPart('l13-ridge-seal', [1.64, 0.20, 0.46], [0, 3.72, -0.02], L13.crown),
+      ...l13TowerCaps,
+      topPart('l13-ridge-seal', [1.18, 0.16, 0.34], [0, 3.57, -0.10], L13.crown),
     ],
     [
       frontPart('l13-left-tower-front', [1.24, 1.38, 0.16], [-0.82, 3.06, 0.64], L13.wall),
