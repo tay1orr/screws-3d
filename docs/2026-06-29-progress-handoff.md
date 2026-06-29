@@ -66,7 +66,7 @@ src/
   2026-06-28-collector-state.js                    순수 규칙 엔진 (활성 박스 + 버퍼 + 큐 + 자동 이송 + cascade step)
   2026-06-28-heart-party.js                        제작자 날짜 이스터에그 (240 하트 + 충격파)
   2026-06-28-level-validator.js                    색 카운트 / 큐 일치 / 의존성 순환 검사
-  2026-06-28-progress-store.js                     localStorage 진행도 저장 (스키마 v2 + KSY 해금)
+  2026-06-28-progress-store.js                     localStorage 진행도 저장 (스키마 v2 + JDY 해금)
   2026-06-29-advanced-levels.js                    HARBOR / SUNSET (`buildSteppedHouse`)
   2026-06-29-elite-levels.js                       ELITE 3 레벨 + 공통 빌더 (`topPart`, `frontPart`, `gableZ`, `buildLayeredLevel` ...)
   2026-06-29-master-levels.js                      MASTER 3 레벨 (elite 빌더 재사용)
@@ -74,7 +74,7 @@ src/
 tests/
   2026-06-28-game-rules.html                       브라우저 규칙 테스트 뷰
   2026-06-28-game-rules.js                         G-01~G-10 + X-01~X-02 시나리오
-  2026-06-28-progress-store-tests.js               4건 (KSY 해금 포함)
+  2026-06-28-progress-store-tests.js               4건 (JDY 해금 포함)
   2026-06-28-run-game-rules.js                     명령줄 러너 (12/12 PASS)
   2026-06-29-campaign-level-tests.js               2건 (튜토리얼 / 풍차)
   2026-06-29-concurrent-input-tests.js             완성 박스가 다른 박스 입력을 전역 잠그지 않음
@@ -185,7 +185,7 @@ git push origin master
 ### 7.5 진행도 저장 v2
 - localStorage 키 분리: `unlocked-levels` + `completed-levels`.
 - 스키마 v1 → v2 마이그레이션 처리.
-- KSY 해금 코드는 모든 레벨을 열고 저장 (테스트로 검증).
+- JDY 해금 코드는 모든 레벨을 열고 저장 (테스트로 검증).
 
 ### 7.6 의존성·풀이 검증
 - `validateLevel` 가 색 카운트, 큐 길이, 의존성 순환 검사.

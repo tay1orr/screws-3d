@@ -48,7 +48,7 @@ test('마지막 레벨은 다음 레벨을 만들지 않는다', () => {
   assert(!store.isUnlocked(2), '범위 밖 레벨이 열림');
 });
 
-test('KSY 해금은 모든 레벨을 열고 저장한다', () => {
+test('JDY 해금은 모든 레벨을 열고 저장한다', () => {
   memory.clear();
   const store = createProgressStore(7);
   store.unlockAll();

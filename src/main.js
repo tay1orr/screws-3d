@@ -530,7 +530,7 @@ creatorForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const secret = creatorDate.value.trim().toUpperCase();
 
-  if (secret === 'KSY') {
+  if (secret === 'JDY') {
     progress.unlockAll();
     renderLevelCards();
     pauseNextBtn.disabled = !progress.isUnlocked(game.levelIdx + 1);
