@@ -6,6 +6,7 @@ import {
 } from './2026-06-28-collector-state.js';
 import { validateLevel } from './2026-06-28-level-validator.js';
 import {
+  hasAttachedPartDependency,
   canReleaseUnfastenedPart,
 } from './2026-06-29-part-dependencies.js';
 import {
@@ -214,16 +215,22 @@ export class Game {
 
     for (const screw of this.screws) {
       if (screw.state !== 'attached') continue;
-      let blocked = false;
+      // A lower layer cannot be pre-cleared while an upper structural layer
+      // is still attached. This keeps an empty panel from hanging in place
+      // after its screws were removed too early.
+      let blocked = hasAttachedPartDependency(screw.plank, this.planks);
 
-      // A dependency delays the part's fall, not removal of a visible screw.
-      // Only real geometry in front of the screw can block interaction.
-      const origin = screw.mesh.position.clone().addScaledVector(screw.normal, 0.04);
-      _ray.set(origin, screw.normal);
-      _ray.far = 2.5;
-      const hits = _ray.intersectObjects(plankMeshes, false);
-      for (const h of hits) {
-        if (h.object !== screw.plank.mesh) { blocked = true; break; }
+      // Structural order and physical occlusion are separate locks. Once the
+      // upper layer starts falling, visible screws are immediately available,
+      // while screws actually covered by geometry stay blocked.
+      if (!blocked) {
+        const origin = screw.mesh.position.clone().addScaledVector(screw.normal, 0.04);
+        _ray.set(origin, screw.normal);
+        _ray.far = 2.5;
+        const hits = _ray.intersectObjects(plankMeshes, false);
+        for (const h of hits) {
+          if (h.object !== screw.plank.mesh) { blocked = true; break; }
+        }
       }
       screw.setBlocked(blocked);
     }
@@ -249,11 +256,12 @@ export class Game {
   }
 
   _isScrewVisibleFromCamera(screw) {
-    const target = screw.mesh.position.clone().addScaledVector(screw.normal, 0.055);
-    const direction = target.clone().sub(this.camera.position);
-    const distance = direction.length();
-    if (distance <= 0.001) return false;
-    direction.normalize();
+    // Mirror a real tap on the centre of the coloured screw head. Using an
+    // arbitrary point along the surface normal could put the ray behind a
+    // sloped roof or wall and incorrectly reject a screw the player can tap.
+    const target = screw.mesh.localToWorld(new THREE.Vector3(0, 0.042, 0));
+    const screenPoint = target.clone().project(this.camera);
+    if (screenPoint.z < -1 || screenPoint.z > 1) return false;
 
     const meshes = [];
     for (const plank of this.planks) {
@@ -262,9 +270,9 @@ export class Game {
     for (const candidate of this.screws) {
       if (candidate.state === 'attached') meshes.push(candidate.mesh);
     }
-    _ray.set(this.camera.position, direction);
+    _ray.setFromCamera(new THREE.Vector2(screenPoint.x, screenPoint.y), this.camera);
     _ray.near = 0;
-    _ray.far = distance + 0.25;
+    _ray.far = this.camera.position.distanceTo(target) + 0.25;
     const hits = _ray.intersectObjects(meshes, true);
     if (hits.length === 0) return false;
     let owner = hits[0].object;
@@ -283,6 +291,7 @@ export class Game {
     const visible = this.screws.filter(screw =>
       screw.state === 'attached'
       && !screw.blocked
+      && this.collector.canAcceptScrew(screw.color)
       && this._isScrewVisibleFromCamera(screw)
     );
     if (visible.length === 0) return null;

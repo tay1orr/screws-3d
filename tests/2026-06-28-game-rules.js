@@ -243,6 +243,23 @@ tests.push({
 });
 
 // ---------- 실행 ----------
+tests.push({
+  id: 'X-03',
+  name: 'hint preflight only accepts colors that have a real destination',
+  fn() {
+    const s = newState(['red', 'blue']);
+
+    assertEq(s.canAcceptScrew('purple'), true, 'empty buffer can receive a non-box color');
+
+    for (const color of ['purple', 'cyan', 'green', 'yellow', 'orange']) {
+      s.acceptScrew(color, id());
+    }
+
+    assertEq(s.canAcceptScrew('red'), true, 'active box color remains collectible');
+    assertEq(s.canAcceptScrew('pink'), false, 'full buffer rejects a color without an active box');
+  }
+});
+
 export function runTests() {
   const results = [];
   for (const t of tests) {

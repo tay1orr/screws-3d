@@ -72,6 +72,10 @@ export class CollectorState {
     return this.buffer.every(s => s !== null);
   }
 
+  canAcceptScrew(color) {
+    return this.findBoxForColor(color) >= 0 || this.findEmptyBufferSlot() >= 0;
+  }
+
   isCleared() {
     const boxesEmpty = this.activeBoxes.every(b => b === null || b.screwIds.length === 0);
     const bufferEmpty = this.buffer.every(s => s === null);
