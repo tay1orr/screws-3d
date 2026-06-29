@@ -103,7 +103,8 @@ function interleaveBins(colors) {
 
 function buildLayeredLevel({
   id, name, description, tutorial, paletteName, layers, layerBins,
-  activeBoxCount = 2, bufferCapacity = 4,
+  activeBoxCount = 2, bufferCapacity = 4, world = 3, difficulty = 10,
+  rank = 'EXPERT', hints = [],
 }) {
   if (layers.length !== layerBins.length) {
     throw new Error(`${id}: layer and color plan length mismatch`);
@@ -128,7 +129,10 @@ function buildLayeredLevel({
       pos: [...spec.pos],
       rot: [...spec.rot],
       color: spec.color,
-      blockedBy: previousIds.length ? [...previousIds] : undefined,
+      blockedBy: spec.blockedBy
+        ? [...spec.blockedBy]
+        : (previousIds.length ? [...previousIds] : undefined),
+      structuralLayer: layerIndex + 1,
       screws: [],
     }));
 
@@ -149,13 +153,14 @@ function buildLayeredLevel({
   return {
     id,
     name,
-    world: 3,
-    difficulty: 10,
+    world,
+    difficulty,
     recommendedOrder: Number(id.slice(-2)),
-    rank: 'EXPERT',
+    rank,
     paletteName,
     description,
     tutorial,
+    hints: hints.length ? [...hints] : [tutorial],
     rules: { activeBoxCount, boxCapacity: 3, bufferCapacity },
     binQueue,
     pieces,
@@ -179,6 +184,11 @@ export const L_SHAPED_MANOR_LEVEL = buildLayeredLevel({
   paletteName: 'teal-manor',
   description: '서로 다른 두 지붕과 별채가 맞물린 다층 저택입니다. 같은 색 나사가 여러 부품에 흩어져 있습니다.',
   tutorial: '상자 색만 보지 말고, 현재 층에 섞여 있는 다음 색까지 확인하세요. 지붕 아래 부품은 위 구조를 모두 치워야 열립니다.',
+  hints: [
+    '가장 높은 굴뚝의 빨간 나사부터 빼야 지붕층이 열려요.',
+    '큰 지붕만 보지 말고 왼쪽 별채 지붕과 앞쪽 차양도 같은 층으로 확인하세요.',
+    '한 부품에 여러 색이 섞여 있어요. 현재 상자 두 색만 골라 여러 부품을 번갈아 누르세요.',
+  ],
   activeBoxCount: 2,
   bufferCapacity: 4,
   layers: [
@@ -221,6 +231,11 @@ export const CROSS_TOWER_LEVEL = buildLayeredLevel({
   paletteName: 'navy-tower',
   description: '교차 지붕과 중앙 탑, 앞뒤 발코니가 서로를 잠그는 회전형 퍼즐입니다.',
   tutorial: '정면에서 보이지 않는 나사가 많습니다. 한 색을 급히 버퍼에 넣기 전에 집을 돌려 같은 층의 반대편을 확인하세요.',
+  hints: [
+    '탑 꼭대기와 뒤쪽 굴뚝을 모두 제거해야 교차 지붕이 열려요.',
+    '지붕 네 장은 한 층입니다. 정면에서 안 보이면 좌우로 돌려 반대 경사를 확인하세요.',
+    '활성 상자 색은 여러 지붕과 벽에 나뉘어 있으니 한 부품만 끝내려 하지 마세요.',
+  ],
   activeBoxCount: 2,
   bufferCapacity: 4,
   layers: [
@@ -270,6 +285,11 @@ export const FINAL_INNER_FRAME_LEVEL = buildLayeredLevel({
   paletteName: 'midnight-finale',
   description: '외벽 안에 한 번 더 숨은 골조가 있는 최종 저택입니다. 84개의 나사가 네 방향과 다섯 구조층에 분산됩니다.',
   tutorial: '버퍼는 세 칸뿐입니다. 현재 상자 두 색이 여러 부품에 하나씩 섞여 있으니, 층마다 세 번의 색 묶음을 끝까지 계획하세요.',
+  hints: [
+    '첨탑과 굴뚝을 먼저 함께 정리해야 다섯 개 지붕 잠금이 풀립니다.',
+    '외벽이 사라져도 끝이 아니에요. 안쪽의 파란 골조와 교차 들보가 다음 층입니다.',
+    '버퍼는 세 칸뿐입니다. 현재 상자와 무관한 색을 두 개 이상 미리 넣지 않는 편이 안전해요.',
+  ],
   activeBoxCount: 2,
   bufferCapacity: 3,
   layers: [
@@ -318,3 +338,14 @@ export const ELITE_LEVELS = [
   CROSS_TOWER_LEVEL,
   FINAL_INNER_FRAME_LEVEL,
 ];
+
+export {
+  topPart,
+  frontPart,
+  backPart,
+  sidePart,
+  gableZ,
+  gableX,
+  buildLayeredLevel,
+  rotate,
+};

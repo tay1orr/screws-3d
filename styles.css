@@ -241,6 +241,28 @@ body.game-paused #hint {
 .icon-btn-sm:hover  { transform: translateY(-1px); box-shadow: 0 4px 0 #2a2a3a; }
 .icon-btn-sm:active { transform: translateY(2px);  box-shadow: 0 1px 0 #2a2a3a; }
 
+.hint-button {
+  pointer-events: auto;
+  position: fixed;
+  top: max(62px, calc(env(safe-area-inset-top) + 48px));
+  left: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 5px 10px;
+  border: 2.5px solid #2a2a3a;
+  border-radius: 999px;
+  background: #fff6c8;
+  color: #2a2a3a;
+  box-shadow: 0 3px 0 #2a2a3a;
+  font: 800 12px/1 system-ui, sans-serif;
+  cursor: pointer;
+  transition: transform .1s ease, box-shadow .1s ease, background .15s ease;
+}
+.hint-button:hover { transform: translateY(-1px); box-shadow: 0 4px 0 #2a2a3a; background: #fff0a2; }
+.hint-button:active { transform: translateY(2px); box-shadow: 0 1px 0 #2a2a3a; }
+
 /* legacy class kept for the splash / overlay buttons */
 .icon-btn {
   pointer-events: auto;
@@ -308,9 +330,16 @@ body.game-paused #hint {
   font-weight: 700;
   color: rgba(42,42,58,0.82);
   pointer-events: none;
-  animation: fadeOut 6s 4s ease-out forwards;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .18s ease, transform .18s ease, visibility 0s linear .18s;
 }
-@keyframes fadeOut { to { opacity: 0; } }
+#hint.hint--visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(-4px);
+  transition-delay: 0s;
+}
 
 /* ---------- Pause panel ---------- */
 #pause-panel {

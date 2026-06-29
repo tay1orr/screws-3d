@@ -28,6 +28,9 @@
         <rect x="3" y="17" width="18" height="2.5" rx="1" fill="currentColor"/>
       </svg>
     </button>
+    <button id="hint-button" class="hint-button" type="button" aria-label="힌트 보기">
+      <span aria-hidden="true">💡</span><span>힌트</span>
+    </button>
 
     <div id="screw-count" aria-label="남은 나사 수">
       <div class="screw-icon" aria-hidden="true">
@@ -40,7 +43,7 @@
       </div>
       <span id="screw-count-text">0 / 0</span>
     </div>
-    <div id="hint">화면을 드래그해 돌리고, 꺼낼 수 있는 나사를 누르세요</div>
+    <div id="hint" role="status" aria-live="polite" aria-hidden="true">화면을 드래그해 돌리고, 꺼낼 수 있는 나사를 누르세요</div>
   </div>
 
   <div id="pause-panel" class="hidden" role="dialog" aria-modal="true" aria-labelledby="pause-level-label">

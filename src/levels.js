@@ -3,6 +3,7 @@ import { HOUSE } from './objects.js';
 import { TUTORIAL_LEVEL, WINDMILL_LEVEL } from './2026-06-28-campaign-levels.js';
 import { HARBOR_HOUSE_LEVEL, SUNSET_HOUSE_LEVEL } from './2026-06-29-advanced-levels.js';
 import { ELITE_LEVELS } from './2026-06-29-elite-levels.js';
+import { MASTER_LEVELS } from './2026-06-29-master-levels.js';
 
 // ---------- tiny helpers ----------
 const v3 = (a) => new THREE.Vector3(...a);
@@ -437,6 +438,7 @@ export const LEVELS = [
   HARBOR_HOUSE_LEVEL,
   SUNSET_HOUSE_LEVEL,
   ...ELITE_LEVELS,
+  ...MASTER_LEVELS,
 ];
 
 export const LEVEL_SUMMARY = LEVELS.map((level, index) => ({
@@ -445,6 +447,7 @@ export const LEVEL_SUMMARY = LEVELS.map((level, index) => ({
   name: level.name ?? `Level ${index + 1}`,
   world: level.world ?? 1,
   difficulty: level.difficulty ?? 1,
+  rank: level.rank ?? '',
   description: level.description ?? '',
   boxCount: level.rules?.activeBoxCount ?? 2,
   screwCount: level.pieces.reduce((sum, piece) => sum + (piece.screws?.length ?? 0), 0),

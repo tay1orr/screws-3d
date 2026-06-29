@@ -331,11 +331,7 @@ function fitCameraToLevel() {
 function loadLevelWithFit(idx) {
   game.loadLevel(idx);
   updateLevelLabels();
-  const level = game.currentLevel();
-  hint.textContent = level?.tutorial ?? '화면을 드래그해 돌리고, 꺼낼 수 있는 나사를 누르세요';
-  hint.style.animation = 'none';
-  void hint.offsetWidth;
-  hint.style.animation = '';
+  resetHint();
   fitCameraToLevel();
   requestAnimationFrame(fitCameraToLevel);
 }
@@ -358,6 +354,7 @@ window.addEventListener('resize', () => {
 // HUD: small menu button + counter; everything else lives in the pause panel
 const screwCountText = document.getElementById('screw-count-text');
 const menuBtn = document.getElementById('menu');
+const hintBtn = document.getElementById('hint-button');
 const hint = document.getElementById('hint');
 const pausePanel = document.getElementById('pause-panel');
 const pauseLevelLabel = document.getElementById('pause-level-label');
@@ -383,6 +380,34 @@ const overlayBtn = document.getElementById('overlay-btn');
 const splash = document.getElementById('splash');
 const startBtn = document.getElementById('start-btn');
 const splashLevelsBtn = document.getElementById('splash-levels');
+
+let hintIndex = 0;
+let hintTimer = null;
+
+function resetHint() {
+  hintIndex = 0;
+  if (hintTimer !== null) window.clearTimeout(hintTimer);
+  hintTimer = null;
+  hint.classList.remove('hint--visible');
+  hint.setAttribute('aria-hidden', 'true');
+}
+
+function showNextHint() {
+  const level = game.currentLevel();
+  const messages = level?.hints?.length
+    ? level.hints
+    : [level?.tutorial ?? '화면을 돌려 가려진 나사를 찾고, 활성 상자 색부터 모아보세요.'];
+  hint.textContent = messages[hintIndex % messages.length];
+  hintIndex = (hintIndex + 1) % messages.length;
+  hint.classList.add('hint--visible');
+  hint.setAttribute('aria-hidden', 'false');
+  if (hintTimer !== null) window.clearTimeout(hintTimer);
+  hintTimer = window.setTimeout(() => {
+    hint.classList.remove('hint--visible');
+    hint.setAttribute('aria-hidden', 'true');
+    hintTimer = null;
+  }, 5200);
+}
 
 function levelLabel(index = game.levelIdx) {
   const meta = LEVEL_SUMMARY[index];
@@ -410,6 +435,7 @@ function closePause() {
   clock.getDelta();
 }
 menuBtn.addEventListener('click', openPause);
+hintBtn.addEventListener('click', showNextHint);
 pauseResumeBtn.addEventListener('click', closePause);
 pauseRestartBtn.addEventListener('click', () => {
   loadLevelWithFit(game.levelIdx);
@@ -439,11 +465,14 @@ function renderLevelCards() {
     card.className = `level-card${completed ? ' level-card--complete' : ''}${unlocked ? '' : ' level-card--locked'}`;
     card.disabled = !unlocked;
     card.dataset.levelIndex = String(meta.index);
+    const difficultyText = meta.rank
+      ? `${meta.rank} · 난이도 ${meta.difficulty}`
+      : `난이도 ${meta.difficulty}/10`;
     card.innerHTML = `
       <span class="level-card-number">${completed ? '✓' : meta.index + 1}</span>
       <span class="level-card-copy">
         <strong>${meta.name}</strong>
-        <small>난이도 ${meta.difficulty}/10 · 나사 ${meta.screwCount}개</small>
+        <small>${difficultyText} · 나사 ${meta.screwCount}개</small>
       </span>
       <span class="level-card-status" aria-hidden="true">${unlocked ? '›' : '🔒'}</span>
     `;

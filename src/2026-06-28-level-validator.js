@@ -104,7 +104,60 @@ export function validateLevel(level) {
   }
   for (const id of partIds) visit(id, []);
 
-  // ---- rule 7: collector dimensions must match the supported UI ----
+  // ---- rule 7: authored structural layers may only depend on earlier layers ----
+  const piecesById = new Map(pieces.filter(part => part.id).map(part => [part.id, part]));
+  for (const part of pieces) {
+    if (part.structuralLayer === undefined) continue;
+    if (!Number.isInteger(part.structuralLayer) || part.structuralLayer < 1) {
+      errors.push(`${part.id}: structuralLayer must be a positive integer`);
+      continue;
+    }
+    if (part.structuralLayer > 1 && (part.blockedBy ?? []).length === 0) {
+      errors.push(`${part.id}: structural layer ${part.structuralLayer} has no supporting dependency`);
+    }
+    for (const blockerId of part.blockedBy ?? []) {
+      const blocker = piecesById.get(blockerId);
+      if (blocker?.structuralLayer !== undefined && blocker.structuralLayer >= part.structuralLayer) {
+        errors.push(`${part.id}: support ${blockerId} must be in an earlier structural layer`);
+      }
+    }
+  }
+
+  // ---- rule 8: authored solution must cover every screw exactly once and
+  // never select a part while one of its supports is still attached ----
+  const solution = Array.isArray(level) ? [] : (level.authoredSolution ?? []);
+  if (solution.length > 0) {
+    if (solution.length !== totalScrews) {
+      errors.push(`Authored solution has ${solution.length} turns for ${totalScrews} screws`);
+    }
+    const remainingByPart = new Map(
+      pieces.filter(part => part.id).map(part => [part.id, part.screws?.length ?? 0])
+    );
+    const selected = new Set();
+    for (let turn = 0; turn < solution.length; turn++) {
+      const step = solution[turn];
+      const part = piecesById.get(step.pieceId);
+      if (!part) {
+        errors.push(`Authored turn ${turn + 1} references missing part "${step.pieceId}"`);
+        continue;
+      }
+      const key = `${step.pieceId}:${step.screwIndex}`;
+      if (selected.has(key)) errors.push(`Authored solution selects ${key} more than once`);
+      selected.add(key);
+      const item = part.screws?.[step.screwIndex];
+      if (!item) errors.push(`Authored turn ${turn + 1} references missing screw ${key}`);
+      else if (item.color !== step.color) errors.push(`Authored turn ${turn + 1} has the wrong color for ${key}`);
+      for (const blockerId of part.blockedBy ?? []) {
+        if ((remainingByPart.get(blockerId) ?? 0) > 0) {
+          errors.push(`Authored turn ${turn + 1} selects ${part.id} before support ${blockerId}`);
+          break;
+        }
+      }
+      remainingByPart.set(step.pieceId, Math.max(0, (remainingByPart.get(step.pieceId) ?? 0) - 1));
+    }
+  }
+
+  // ---- rule 9: collector dimensions must match the supported UI ----
   if (!Array.isArray(level)) {
     const activeBoxCount = level.rules?.activeBoxCount ?? 2;
     const bufferCapacity = level.rules?.bufferCapacity ?? 5;
