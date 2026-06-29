@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { HOUSE } from './objects.js';
 import { TUTORIAL_LEVEL, WINDMILL_LEVEL } from './2026-06-28-campaign-levels.js';
 import { HARBOR_HOUSE_LEVEL, SUNSET_HOUSE_LEVEL } from './2026-06-29-advanced-levels.js';
+import { ELITE_LEVELS } from './2026-06-29-elite-levels.js';
 
 // ---------- tiny helpers ----------
 const v3 = (a) => new THREE.Vector3(...a);
@@ -435,6 +436,7 @@ export const LEVELS = [
   ROSE_COTTAGE,
   HARBOR_HOUSE_LEVEL,
   SUNSET_HOUSE_LEVEL,
+  ...ELITE_LEVELS,
 ];
 
 export const LEVEL_SUMMARY = LEVELS.map((level, index) => ({

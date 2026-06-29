@@ -41,20 +41,24 @@ function buildSteppedHouse({ id, name, difficulty, palette, activeBoxCount, rota
 
   // The array order is also a guaranteed top-down solution order. Each part
   // owns one full color set (three screws), so a one-box level remains fair.
+  // The roof eave sits just above the upper walls (top y = 2.13).  The old
+  // roof centre was y = 2.16, which buried both slopes inside the walls and
+  // made them read as a nearly flat, doubled plate.  These values describe a
+  // real 32-degree gable: eave y 2.18, ridge y 3.18.
   pieces.push(piece({
-    id: 'tower-cap', size: [0.72, 0.55, 0.72], pos: [0.78, 2.62, 0.28],
+    id: 'chimney-body', size: [0.46, 0.66, 0.46], pos: [0.78, 3.27, 0.28],
     rot: [0, 0, 0], color: palette.cap,
-  }, nextColor(), [[-0.20, 0.29, 0], [0.20, 0.29, 0], [0, 0.29, -0.20]], [0, 1, 0]));
+  }, nextColor(), [[-0.14, 0.34, 0], [0.14, 0.34, 0], [0, 0.34, -0.14]], [0, 1, 0]));
 
   pieces.push(piece({
-    id: 'roof-back', size: [3.45, 0.18, 1.78], pos: [0, 2.16, -0.62],
-    rot: [-0.46, 0, 0], color: palette.roofAlt,
+    id: 'roof-back', size: [3.45, 0.18, 1.89], pos: [0, 2.68, -0.80],
+    rot: [-0.559, 0, 0], color: palette.roofAlt,
   }, nextColor(), [[-1.10, 0.11, 0.22], [0, 0.11, -0.18], [1.10, 0.11, 0.22]], [0, 1, 0]));
 
   pieces.push(piece({
-    id: 'roof-front', blockedBy: ['tower-cap'],
-    size: [3.45, 0.18, 1.78], pos: [0, 2.16, 0.62],
-    rot: [0.46, 0, 0], color: palette.roof,
+    id: 'roof-front', blockedBy: ['chimney-body'],
+    size: [3.45, 0.18, 1.89], pos: [0, 2.68, 0.80],
+    rot: [0.559, 0, 0], color: palette.roof,
   }, nextColor(), [[-1.10, 0.11, 0.22], [0, 0.11, -0.18], [1.10, 0.11, 0.22]], [0, 1, 0]));
 
   pieces.push(piece({

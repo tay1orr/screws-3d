@@ -316,9 +316,11 @@ function fitCameraToLevel() {
     if (fits(mid)) high = mid;
     else low = mid;
   }
-  // The mathematical box includes invisible perspective extremes. A tighter
-  // presentation matches the reference and keeps the puzzle touch targets big.
-  const dist = high * 0.72;
+  // Small campaign models benefit from the reference game's close framing.
+  // Expert maps are wider and taller, so keep their full structural silhouette
+  // inside the playable area instead of cropping foundations and side wings.
+  const framingScale = game.levelIdx >= 7 ? 0.90 : 0.72;
+  const dist = high * framingScale;
   placeAtDistance(dist);
   controls.minDistance = dist * 0.92;
   controls.maxDistance = dist * 1.55;

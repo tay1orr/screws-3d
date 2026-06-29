@@ -63,6 +63,62 @@ export function validateLevel(level) {
     );
   }
 
+  // ---- rule 5: structural dependency IDs must be unique and resolvable ----
+  const idCounts = new Map();
+  for (const part of pieces) {
+    if (!part.id) continue;
+    idCounts.set(part.id, (idCounts.get(part.id) ?? 0) + 1);
+  }
+  for (const [id, count] of idCounts) {
+    if (count > 1) errors.push(`Duplicate part id "${id}" (${count} occurrences)`);
+  }
+
+  const partIds = new Set(idCounts.keys());
+  const dependencies = new Map();
+  for (const part of pieces) {
+    const blockers = part.blockedBy ?? [];
+    if (blockers.length > 0 && !part.id) {
+      errors.push('A part with blockedBy must have its own id');
+      continue;
+    }
+    dependencies.set(part.id, blockers);
+    for (const blocker of blockers) {
+      if (!partIds.has(blocker)) errors.push(`${part.id}: missing blocker "${blocker}"`);
+      if (blocker === part.id) errors.push(`${part.id}: part cannot block itself`);
+    }
+  }
+
+  // ---- rule 6: dependency graph must not contain a cycle ----
+  const visiting = new Set();
+  const visited = new Set();
+  function visit(id, trail) {
+    if (!id || visited.has(id) || !partIds.has(id)) return;
+    if (visiting.has(id)) {
+      errors.push(`Dependency cycle: ${[...trail, id].join(' -> ')}`);
+      return;
+    }
+    visiting.add(id);
+    for (const blocker of dependencies.get(id) ?? []) visit(blocker, [...trail, id]);
+    visiting.delete(id);
+    visited.add(id);
+  }
+  for (const id of partIds) visit(id, []);
+
+  // ---- rule 7: collector dimensions must match the supported UI ----
+  if (!Array.isArray(level)) {
+    const activeBoxCount = level.rules?.activeBoxCount ?? 2;
+    const bufferCapacity = level.rules?.bufferCapacity ?? 5;
+    if (!Number.isInteger(activeBoxCount) || activeBoxCount < 1 || activeBoxCount > 3) {
+      errors.push(`activeBoxCount must be an integer from 1 to 3 (received ${activeBoxCount})`);
+    }
+    if (!Number.isInteger(bufferCapacity) || bufferCapacity < 1) {
+      errors.push(`bufferCapacity must be a positive integer (received ${bufferCapacity})`);
+    }
+    if (queue.length < activeBoxCount) {
+      warnings.push(`Queue has fewer bins (${queue.length}) than active boxes (${activeBoxCount})`);
+    }
+  }
+
   // ---- soft warnings ----
   if (totalScrews === 0) {
     warnings.push('Level has zero screws');
